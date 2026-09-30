@@ -1,0 +1,26 @@
+{
+  "id": "02-bug-off-by-one",
+  "title": "Fix the number of pages",
+  "category": "bug",
+  "language": "python",
+  "request": "page_count returns too few pages when the items do not fill the last page. Fix it. A page size of zero or less is an error and must raise ValueError.",
+  "checks": [
+    {
+      "id": "tests",
+      "kind": "test",
+      "title": "Unit tests",
+      "command": "python",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-t",
+        "."
+      ],
+      "timeoutSeconds": 300
+    }
+  ],
+  "protectedPaths": []
+}

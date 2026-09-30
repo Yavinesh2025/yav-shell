@@ -1,0 +1,23 @@
+{
+  "id": "03-add-tests",
+  "title": "Write tests that notice defects",
+  "category": "tests",
+  "language": "python",
+  "request": "Write unit tests for slugify in tests/test_slug.py. They must notice when slugify stops lowercasing, stops replacing blanks and punctuation by a single hyphen, or stops removing hyphens at both ends. Do not change slug.py.",
+  "checks": [
+    {
+      "id": "tests",
+      "kind": "test",
+      "title": "Tests notice defects",
+      "command": "python",
+      "args": [
+        "acceptance/check_tests.py"
+      ],
+      "timeoutSeconds": 300
+    }
+  ],
+  "protectedPaths": [
+    "acceptance/**",
+    "slug.py"
+  ]
+}

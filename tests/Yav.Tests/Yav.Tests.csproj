@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Yav.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Yav.Core\Yav.Core.csproj" />
+    <ProjectReference Include="..\..\src\Yav.Platform\Yav.Platform.csproj" />
+    <ProjectReference Include="..\..\src\Yav.Storage\Yav.Storage.csproj" />
+    <ProjectReference Include="..\..\src\Yav.Adapters\Yav.Adapters.csproj" />
+    <ProjectReference Include="..\..\src\Yav.Workspace\Yav.Workspace.csproj" />
+    <ProjectReference Include="..\..\src\Yav.Validation\Yav.Validation.csproj" />
+    <ProjectReference Include="..\..\src\Yav.Coordinator\Yav.Coordinator.csproj" />
+    <ProjectReference Include="..\..\src\Yav.Console\Yav.Console.csproj" />
+    <ProjectReference Include="..\..\bench\Yav.Bench\Yav.Bench.csproj" />
+    <!-- The fake agent is a separate executable used as a fixture; it is built first but not referenced as code. -->
+    <ProjectReference Include="..\Yav.FakeAgent\Yav.FakeAgent.csproj" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

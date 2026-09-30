@@ -1,0 +1,33 @@
+{
+  "id": "12-regression-test",
+  "title": "A defect, a test that shows it, and the correction",
+  "category": "tests",
+  "language": "node",
+  "request": "parseRange('5-3') in src/range.js returns nothing. A range that is written backwards means the same numbers as the range written forwards. Add a test to the directory test that shows the defect, and correct it.",
+  "checks": [
+    {
+      "id": "tests",
+      "kind": "test",
+      "title": "Behavior",
+      "command": "node",
+      "args": [
+        "--test",
+        "acceptance/range.acceptance.test.js"
+      ],
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "regression",
+      "kind": "test",
+      "title": "The new test shows the defect",
+      "command": "node",
+      "args": [
+        "acceptance/check-regression-test.js"
+      ],
+      "timeoutSeconds": 300
+    }
+  ],
+  "protectedPaths": [
+    "acceptance/**"
+  ]
+}

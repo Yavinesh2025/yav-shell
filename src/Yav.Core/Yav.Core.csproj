@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Yav.Core</RootNamespace>
+  </PropertyGroup>
+
+  <!-- The runtime templates in /templates are the single source of truth; they are embedded at build time. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\templates\*.md" LogicalName="Yav.Core.Templates.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Yav.Tests" />
+  </ItemGroup>
+
+</Project>

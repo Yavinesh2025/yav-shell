@@ -1,0 +1,5 @@
+/status
+Correct the spelling in src/greeting.txt.
+/diff --stat
+/apply
+/exit

@@ -1,0 +1,18 @@
+# Build output (all projects build into artifacts/, see Directory.Build.props)
+artifacts/
+bin/
+obj/
+dist/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# Test and benchmark output
+TestResults/
+bench/results/*.local.json
+
+# Local tooling state
+.remember/

@@ -1,0 +1,26 @@
+<Project>
+
+  <!--
+    Pinned dependency versions. Versions were verified against nuget.org on 2026-09-29.
+    Change a version here only together with a full test run (scripts/test.ps1).
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Console UI -->
+    <PackageVersion Include="PrettyPrompt" Version="6.0.5" />
+    <PackageVersion Include="Spectre.Console" Version="0.57.2" />
+
+    <!-- Storage -->
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+
+    <!-- Tests -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+</Project>

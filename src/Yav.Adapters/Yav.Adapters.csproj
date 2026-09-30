@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Yav.Adapters</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Yav.Core\Yav.Core.csproj" />
+    <ProjectReference Include="..\Yav.Platform\Yav.Platform.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Yav.Tests" />
+  </ItemGroup>
+
+</Project>

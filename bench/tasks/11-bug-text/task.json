@@ -1,0 +1,26 @@
+{
+  "id": "11-bug-text",
+  "title": "Initials of names as people write them",
+  "category": "bug",
+  "language": "python",
+  "request": "initials in names.py fails for names with more than one blank between the words and gives the wrong letters for names that do not begin with a letter from A to Z. It must give the first letter of each word in upper case, for any letter, and nothing for a name without words.",
+  "checks": [
+    {
+      "id": "tests",
+      "kind": "test",
+      "title": "Unit tests",
+      "command": "python",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-t",
+        "."
+      ],
+      "timeoutSeconds": 300
+    }
+  ],
+  "protectedPaths": []
+}

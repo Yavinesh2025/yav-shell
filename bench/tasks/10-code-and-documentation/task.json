@@ -1,0 +1,20 @@
+{
+  "id": "10-code-and-documentation",
+  "title": "Change a default where it is set and where it is described",
+  "category": "small edit",
+  "language": "node",
+  "request": "The server should listen on port 8080 by default instead of 3000. Change it in src/config.js and wherever the documentation names it.",
+  "checks": [
+    {
+      "id": "tests",
+      "kind": "test",
+      "title": "Unit tests",
+      "command": "node",
+      "args": [
+        "--test"
+      ],
+      "timeoutSeconds": 300
+    }
+  ],
+  "protectedPaths": []
+}

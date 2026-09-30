@@ -1,0 +1,51 @@
+{
+  "id": "09-follow-up",
+  "title": "A setting, and then more of it",
+  "category": "related follow-up",
+  "language": "python",
+  "request": "Add a setting \"timeout\" to load_settings in settings.py: a number of seconds, 30 when it is not given. A timeout that is zero or less must raise ValueError.",
+  "checks": [
+    {
+      "id": "tests",
+      "kind": "test",
+      "title": "Timeout",
+      "command": "python",
+      "args": [
+        "-m",
+        "unittest",
+        "tests.test_timeout"
+      ],
+      "timeoutSeconds": 300
+    }
+  ],
+  "protectedPaths": [],
+  "followUp": {
+    "request": "The timeout can also be written as text with a unit: \"45s\" are seconds and \"2m\" are minutes. Text without a unit is seconds. Anything else must raise ValueError.",
+    "checks": [
+      {
+        "id": "tests",
+        "kind": "test",
+        "title": "Timeout",
+        "command": "python",
+        "args": [
+          "-m",
+          "unittest",
+          "tests.test_timeout"
+        ],
+        "timeoutSeconds": 300
+      },
+      {
+        "id": "units",
+        "kind": "test",
+        "title": "Timeout with units",
+        "command": "python",
+        "args": [
+          "-m",
+          "unittest",
+          "tests.test_timeout_units"
+        ],
+        "timeoutSeconds": 300
+      }
+    ]
+  }
+}

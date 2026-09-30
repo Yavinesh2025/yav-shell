@@ -1,0 +1,20 @@
+{
+  "id": "08-feature-validation",
+  "title": "Refuse what is not valid",
+  "category": "feature",
+  "language": "node",
+  "request": "createUser in src/user.js accepts anything. It must refuse a name that is missing or blank and an email without an @, by throwing a ValidationError whose property field names what was wrong (\"name\" or \"email\"). ValidationError is exported from src/user.js. Blanks around the name and the email are removed.",
+  "checks": [
+    {
+      "id": "tests",
+      "kind": "test",
+      "title": "Unit tests",
+      "command": "node",
+      "args": [
+        "--test"
+      ],
+      "timeoutSeconds": 300
+    }
+  ],
+  "protectedPaths": []
+}

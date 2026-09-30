@@ -1,0 +1,26 @@
+{
+  "id": "04-feature-option",
+  "title": "Add an option to a command",
+  "category": "feature",
+  "language": "python",
+  "request": "Add an option --chars to count.py. With it, the characters of the text are counted instead of the words. Without it nothing changes. An option that is not known must end with exit code 2.",
+  "checks": [
+    {
+      "id": "tests",
+      "kind": "test",
+      "title": "Unit tests",
+      "command": "python",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-t",
+        "."
+      ],
+      "timeoutSeconds": 300
+    }
+  ],
+  "protectedPaths": []
+}

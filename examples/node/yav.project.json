@@ -1,0 +1,23 @@
+{
+  // Required checks for a Node.js project, one of which needs a service that is not always there.
+  "schemaVersion": 1,
+
+  // Scripts of dependencies do not run while installing: --ignore-scripts.
+  "prepare": [
+    { "id": "install", "title": "Install dependencies", "command": "npm", "args": ["ci", "--ignore-scripts"], "requires": ["tool:npm", "file:package-lock.json"] }
+  ],
+
+  "gates": [
+    { "id": "test", "kind": "test", "title": "Tests", "command": "node", "args": ["--test", "test/*.test.js"], "requires": ["tool:node"] },
+
+    // When the database cannot be reached the check is Unverified. That is not a pass: the run stops
+    // and names it, and you decide (/test waive integration <reason>).
+    { "id": "integration", "kind": "integration", "title": "Tests against the database", "command": "node", "args": ["--test", "integration/*.test.js"],
+      "cwd": "services/api", "timeoutSeconds": 900, "requires": ["env:DATABASE_URL", "tcp:localhost:5432"] }
+  ],
+
+  "protectedPaths": [".github/**", "migrations/**", "package-lock.json"],
+  "testPaths": ["test/**", "services/api/integration/**"],
+  "replicateIgnored": [".env.test"],
+  "allowSecrets": [".env.test"]
+}

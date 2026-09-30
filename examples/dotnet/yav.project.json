@@ -1,0 +1,29 @@
+{
+  // Required checks for a .NET solution. Copy the file into the root of the project as
+  // yav.project.json, change it to what the project needs, and approve it with /test trust.
+  "schemaVersion": 1,
+
+  // Runs once in a new isolated workspace, before Model A starts.
+  "prepare": [
+    { "id": "restore", "title": "Restore packages", "command": "dotnet", "args": ["restore"], "requires": ["tool:dotnet"] }
+  ],
+
+  "gates": [
+    { "id": "build", "kind": "build", "title": "Build", "command": "dotnet", "args": ["build", "--nologo", "--no-restore"], "requires": ["tool:dotnet"] },
+    { "id": "test", "kind": "test", "title": "Tests", "command": "dotnet", "args": ["test", "--nologo", "--no-build"], "timeoutSeconds": 3600, "requires": ["tool:dotnet"] },
+
+    // Not required: its result is shown, and a candidate can be ready without it.
+    { "id": "format", "kind": "lint", "title": "Formatting", "command": "dotnet", "args": ["format", "--verify-no-changes", "--no-restore"], "required": false }
+  ],
+
+  // A candidate that changes one of these waits for /review approve <path>.
+  "protectedPaths": [".github/**", "deploy/**", "**/*.pubxml", "Directory.Packages.props"],
+
+  // Where tests are. A candidate that changes or deletes one is pointed out to you and to the reviewer.
+  "testPaths": ["tests/**", "**/*Tests.cs"],
+
+  // Files ignored by Git that the checks need. Files that look like secrets are refused unless named in allowSecrets.
+  "replicateIgnored": ["appsettings.Development.json"],
+
+  "validation": { "execution": "copy" }
+}

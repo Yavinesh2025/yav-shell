@@ -1,0 +1,30 @@
+{
+  "mode": "fixture",
+  "startedAt": "2026-09-29T10:34:58.7875373+00:00",
+  "seed": 1,
+  "repetitions": 3,
+  "modelA": "model-a (codex-app-server, effort maximum)",
+  "modelB": "model-b (codex-app-server, effort maximum)",
+  "yavVersion": "0.1.0",
+  "machine": "Microsoft Windows 10.0.26200, 8 logical processors",
+  "arms": [
+    "yav",
+    "yav-optimization-off",
+    "two-models-by-hand",
+    "model-a-alone"
+  ],
+  "tasks": [
+    "01-small-edit",
+    "02-bug-off-by-one",
+    "03-add-tests",
+    "04-feature-option",
+    "05-refactor",
+    "06-multi-file-rename",
+    "07-bug-async",
+    "08-feature-validation",
+    "09-follow-up",
+    "10-code-and-documentation",
+    "11-bug-text",
+    "12-regression-test"
+  ]
+}

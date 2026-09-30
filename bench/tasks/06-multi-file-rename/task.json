@@ -1,0 +1,20 @@
+{
+  "id": "06-multi-file-rename",
+  "title": "Rename a function everywhere",
+  "category": "multi-file behavior",
+  "language": "node",
+  "request": "Rename the function calc in src/math.js to totalWithTax, everywhere it is used. The old name must no longer be exported.",
+  "checks": [
+    {
+      "id": "tests",
+      "kind": "test",
+      "title": "Unit tests",
+      "command": "node",
+      "args": [
+        "--test"
+      ],
+      "timeoutSeconds": 300
+    }
+  ],
+  "protectedPaths": []
+}

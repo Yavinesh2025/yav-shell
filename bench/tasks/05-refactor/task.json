@@ -1,0 +1,26 @@
+{
+  "id": "05-refactor",
+  "title": "Split a function without changing what it does",
+  "category": "refactoring",
+  "language": "python",
+  "request": "build_report in report.py does two things. Split it into parse_line(line), which returns the name and the amount of one line, and summarize(records), which adds the amounts up by name. build_report must return what it returned before.",
+  "checks": [
+    {
+      "id": "tests",
+      "kind": "test",
+      "title": "Unit tests",
+      "command": "python",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-t",
+        "."
+      ],
+      "timeoutSeconds": 300
+    }
+  ],
+  "protectedPaths": []
+}

@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Yav.Core/Yav.Core.csproj" />
+    <Project Path="src/Yav.Platform/Yav.Platform.csproj" />
+    <Project Path="src/Yav.Storage/Yav.Storage.csproj" />
+    <Project Path="src/Yav.Adapters/Yav.Adapters.csproj" />
+    <Project Path="src/Yav.Workspace/Yav.Workspace.csproj" />
+    <Project Path="src/Yav.Validation/Yav.Validation.csproj" />
+    <Project Path="src/Yav.Coordinator/Yav.Coordinator.csproj" />
+    <Project Path="src/Yav.Console/Yav.Console.csproj" />
+  </Folder>
+  <Folder Name="/bench/">
+    <Project Path="bench/Yav.Bench/Yav.Bench.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Yav.Tests/Yav.Tests.csproj" />
+    <Project Path="tests/Yav.FakeAgent/Yav.FakeAgent.csproj" />
+  </Folder>
+</Solution>

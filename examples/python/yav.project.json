@@ -1,0 +1,13 @@
+{
+  // Required checks for a Python project that uses nothing but the standard library.
+  "schemaVersion": 1,
+
+  "gates": [
+    { "id": "compile", "kind": "build", "title": "Every file compiles", "command": "python", "args": ["-m", "compileall", "-q", "src", "tests"], "requires": ["tool:python"] },
+    { "id": "tests", "kind": "test", "title": "Unit tests", "command": "python", "args": ["-m", "unittest", "discover", "-s", "tests", "-t", "."], "requires": ["tool:python"],
+      "env": { "PYTHONDONTWRITEBYTECODE": "1" } }
+  ],
+
+  "protectedPaths": [".github/**", "pyproject.toml"],
+  "testPaths": ["tests/**"]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "01-small-edit",
+  "title": "Change the wording of a greeting",
+  "category": "small edit",
+  "language": "python",
+  "request": "The greeting should end with a period instead of an exclamation mark, and blanks around the name should be ignored.",
+  "checks": [
+    {
+      "id": "tests",
+      "kind": "test",
+      "title": "Unit tests",
+      "command": "python",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-t",
+        "."
+      ],
+      "timeoutSeconds": 300
+    }
+  ],
+  "protectedPaths": []
+}

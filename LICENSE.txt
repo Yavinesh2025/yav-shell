@@ -1,0 +1,11 @@
+YAV Shell
+Copyright (c) 2026 Yavinesh Rajagopal. All rights reserved.
+
+YAV Shell, including its source code, documentation, templates, tests,
+benchmark and packages, is proprietary. No part of it may be copied,
+modified, distributed, sublicensed or used without the prior written
+permission of the copyright holder.
+
+Components by others that are distributed with YAV Shell remain under their
+own licenses, which THIRD-PARTY-NOTICES.md lists. Nothing in this notice
+limits what those licenses permit.

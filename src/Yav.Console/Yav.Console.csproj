@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>yav</AssemblyName>
+    <RootNamespace>Yav.Console</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Startup latency: compile ahead of time where possible and use tiered PGO defaults. -->
+    <TieredPGO>true</TieredPGO>
+    <AutoreleasePoolSupport>false</AutoreleasePoolSupport>
+    <UseSystemResourceKeys>false</UseSystemResourceKeys>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Yav.Core\Yav.Core.csproj" />
+    <ProjectReference Include="..\Yav.Platform\Yav.Platform.csproj" />
+    <ProjectReference Include="..\Yav.Storage\Yav.Storage.csproj" />
+    <ProjectReference Include="..\Yav.Adapters\Yav.Adapters.csproj" />
+    <ProjectReference Include="..\Yav.Workspace\Yav.Workspace.csproj" />
+    <ProjectReference Include="..\Yav.Validation\Yav.Validation.csproj" />
+    <ProjectReference Include="..\Yav.Coordinator\Yav.Coordinator.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PrettyPrompt" />
+    <PackageReference Include="Spectre.Console" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Yav.Tests" />
+  </ItemGroup>
+
+</Project>

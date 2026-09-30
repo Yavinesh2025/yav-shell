@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Test fixture only. A scripted stand-in for an agent CLI that speaks the same wire formats
+    (Codex app-server JSON-RPC, codex exec JSONL, Claude stream-json) so that process handling,
+    framing, approvals and cancellation are tested on Windows without consuming provider usage.
+    It is never packaged with YAV Shell and is never offered as a model.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>yav-fake-agent</AssemblyName>
+    <RootNamespace>Yav.FakeAgent</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+</Project>

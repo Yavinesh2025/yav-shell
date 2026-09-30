@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The benchmark tool. It is not part of YAV Shell and is never packaged with it.
+    In fixture mode the agents are the scripted stand-in, so nothing is sent to a provider.
+    Live mode consumes usage and starts only with an explicit authorization.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>yav-bench</AssemblyName>
+    <RootNamespace>Yav.Bench</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Yav.Core\Yav.Core.csproj" />
+    <ProjectReference Include="..\..\src\Yav.Platform\Yav.Platform.csproj" />
+    <ProjectReference Include="..\..\src\Yav.Storage\Yav.Storage.csproj" />
+    <ProjectReference Include="..\..\src\Yav.Adapters\Yav.Adapters.csproj" />
+    <ProjectReference Include="..\..\src\Yav.Validation\Yav.Validation.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Yav.Tests" />
+  </ItemGroup>
+
+</Project>
