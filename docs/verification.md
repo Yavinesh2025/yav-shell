@@ -18,8 +18,8 @@ it did not touch.
 
 | What | How | Result |
 |---|---|---|
-| The automated tests | `scripts\test.ps1` | 2300 of 2300 passed; [test-results.md](test-results.md) lists them class by class. They use a scripted stand-in for the agents |
-| That the tests can fail | `scripts\mutation-check.ps1` | 349 defects were put into the code one at a time; the tests noticed all 349, two of them only after a test was added or corrected ([What the checks found](#what-the-checks-found)) |
+| The automated tests | `scripts\test.ps1` | 2312 of 2312 passed; [test-results.md](test-results.md) lists them class by class. They use a scripted stand-in for the agents |
+| That the tests can fail | `scripts\mutation-check.ps1` | 352 defects were put into the code one at a time; the tests noticed all 352, two of them only after a test was added or corrected ([What the checks found](#what-the-checks-found)) |
 | The package where there is no .NET, no Git and no agent | `scripts\verify-package.ps1` | 20 of 20 checks |
 | The package on a new Windows | `scripts\verify-package.ps1 -Sandbox` | 26 of 26 checks, in Windows Sandbox without network, with the package as it was before the last two changes (below); not repeated after them |
 | The benchmark tool and its tasks | `yav-bench verify`, `yav-bench run` | 12 tasks are sound; 156 of 156 runs with scripted agents |
@@ -31,12 +31,14 @@ The tests were run completely after the last change to the program. The mutation
 copies of the source side by side, each over a quarter of its entries; what was changed after the
 copies had been made was checked again on the final source: every entry on a file that changed, and
 the two mutations the tests had not noticed at first, after the correction. The measurements, the
-benchmark and the check on a new Windows were made with the program as it was before the last two
-changes: the section that tells Model A which checks YAV runs itself, and the copyright in the
-properties of the program. Neither changes what they measure or check, but they were not repeated.
-The tests and the mutations of the changed code were run after those changes, and the second run
-with real models was made with that program. Documents of the package, this one among them, were
-completed last; the package was then built once more and checked where there is no .NET.
+benchmark and the check on a new Windows were made with the program as it was before its last
+changes: the section that tells Model A which checks YAV runs itself, the copyright in the
+properties of the program, the versions of the agents that are called tested, and how a turn is
+reported that YAV ends together with the agent's process. None of them changes what they measure
+or check, but they were not repeated. The second run with real models was made before the last two
+of those changes. The tests and the mutations of the changed code were run after all of them.
+Documents of the package, this one among them, were completed last; the package was then built
+once more and checked where there is no .NET.
 
 ## Fixture tests and live tests
 
@@ -53,7 +55,7 @@ console.
 | Storage | 32 | SQLite files, migrations |
 | Validation: `yav.project.json`, trust, required checks | 57 | the checks are processes that run |
 | Workspace: isolation, baseline, candidate, apply, undo, merge | 148 | Git repositories, worktrees and files in temporary directories |
-| Adapters | 305 | the adapters, talking to the stand-in over pipes |
+| Adapters | 317 | the adapters, talking to the stand-in over pipes |
 | Coordinator: a run from preparation to a candidate, repair, recovery | 308 | everything below the console |
 | Console: parsing, rendering, the line editor, questions of agents, JSON, every command of the shell | 796 | the shell runs against a terminal that is kept in memory |
 | The program itself, started with pipes | 23 | `yav.exe` as a process: `yav run`, `yav doctor`, input from a pipe, exit codes |
@@ -65,7 +67,7 @@ console.
 **Live tests** talk to the agents that are installed. There are six, they run only with
 `scripts\test.ps1 -Live`, and with none of them a request reaches a model. They were run last on
 2026-09-30 in the evening, after all changes and after the second run with real models; all six
-passed.
+passed, and both installed agents were reported as tested.
 
 | Test | What it found on 2026-09-30 |
 |---|---|
@@ -79,9 +81,9 @@ passed.
 **Both agents updated themselves.** Claude Code went from 2.1.284, the version the first run was
 made with, to 2.1.285 between 2026-09-29 and 2026-09-30; Codex went from 0.158.0 to 0.159.2 during
 2026-09-30, between the live tests of the morning and the second run with real models. The live tests
-pass with both, and the second run was made with both. YAV calls only Claude Code 2.1.284 and Codex
-0.158 tested, and says so in `yav doctor` and at the start of every run; that is the case now on
-this machine.
+pass with both, and the second run was made with both. Afterwards you had both newer versions
+called tested: YAV now calls Claude Code 2.1.284 and 2.1.285, and Codex 0.158 and 0.159, tested, and
+warns for every other version in `yav doctor` and at the start of a run.
 
 The last test in the table was added after the first run with real models, and it is the check that
 would have found the defects of that run beforehand. Claude Code says which tools a conversation has
@@ -182,14 +184,17 @@ run with it.
 ## The second run with real models
 
 Made on 2026-09-30 with `scripts\live-run.ps1`, after you authorized one more run of one small task
-with the same models, efforts and account routes as the first. It was made with the program of the
-package that is delivered. Everything it wrote is kept in `artifacts\live-run\20260930-100510`.
+with the same models, efforts and account routes as the first. It was made with the program as it
+was before two later changes, neither of which came up in it: the two newer versions of the agents
+are called tested now, and a turn that YAV ends together with the agent's process is reported that
+way, whatever the agent says while it ends. Everything the run wrote is kept in
+`artifacts\live-run\20260930-100510`.
 
 | | |
 |---|---|
 | Task | the same as in the first run, `01-small-edit` |
-| Model A | `gpt-6-astra` through `codex-app-server` (Codex CLI **0.159.2**, which YAV calls untested and said so at the start of the run), effort `max`, ChatGPT plan |
-| Model B | `opus`, which is `claude-opus-5-5`, through `claude-cli` (Claude Code **2.1.285**, untested as well), effort `max`, Claude subscription |
+| Model A | `gpt-6-astra` through `codex-app-server` (Codex CLI **0.159.2**, which YAV called untested then and said so at the start of the run), effort `max`, ChatGPT plan |
+| Model B | `opus`, which is `claude-opus-5-5`, through `claude-cli` (Claude Code **2.1.285**, untested then as well), effort `max`, Claude subscription |
 | Policy | Quality Lock on, strict; two repair cycles; standard speed |
 
 What happened, in order:
@@ -325,6 +330,7 @@ they show what kind of defect the checks notice, and what kind may still be ther
 | The mutation check | The test that YAV takes no screen of its own, and leaves the scrollback and the mouse to the console, looked only at what came after YAV's first line, because the pseudo console empties its screen by itself before that. A switch to another screen written before the first line was not seen. The test looks at everything now, except for that one sequence of the pseudo console |
 | The complete test run | A test in which the stand-in closes its input failed once in three complete runs. What YAV wrote to it afterwards did not fail, because a program that another test had started at that moment had been given the end of that pipe: Windows gives a program that is started with inherited handles every handle that is inheritable at that moment. The test runs while no other test runs now. In YAV itself every program is started with a list of the handles it may have, except those of `/shell`, `/exec` and `/login`, and those three wait while a run is active |
 | The complete test run | A test that counts how many questions to Git are open at the same time failed once while the machine was short of memory. YAV starts the processes one after the other and then waits for them together; where starting took long, the first had ended before the last began. The test now holds every answer back until no question has been asked for a second, which shows the same on any machine and still fails where the questions are asked one after the other |
+| The complete test run | A test in which a turn ignores the interrupt, so that YAV ends the agent's process after the grace period, failed once. YAV closes the input of the process first, and the stand-in reported the turn as interrupted before it was gone; YAV then reported the turn as the agent had, as if it had stopped when asked. Once YAV has begun to end the process, the turn ends with it now, whatever the agent says meanwhile, and a test makes the stand-in report first every time |
 | Cleaning up after the checks | The temporary directory of a test followed junctions when it made files writable to remove them. The directory of the test for junctions, which holds one that leads back into it, was left behind by every run, and where a junction led out of such a directory, files there would have been changed. Links are removed as links now, and two tests show it |
 | The complete test run | Two tests looked at what the agent had received before the agent could have received it. They passed when run alone and failed once under load; they now wait for what they depend on |
 | The complete test run | Two tests expected a span of time to be at least as long as a delay of 400 ms. It was 399.86 ms once: a delay can end a fraction early by another clock |
@@ -366,7 +372,7 @@ the installed agents were asked what they could be asked without a model.
 | Codex: your own instructions | When your Codex configuration could not be read, your developer instructions were left out without a word, and for every later conversation | It is said, and the next conversation reads them again |
 | `codex exec` | It reported the directory YAV had asked it to work in as if the agent had said it | Nothing it did not say is filled in |
 | `yav doctor` | It would have reported the stand-ins Windows puts where Python is missing as programs of the Store | They are recognized and left out |
-| Tested versions | Claude Code was called tested for every 2.1 release from 2.1.259 on | Only 2.1.284, the one that was tried |
+| Tested versions | Claude Code was called tested for every 2.1 release from 2.1.259 on | Only the releases that were tried: 2.1.284, and 2.1.285 since the second run with real models |
 | `scripts\live-run.ps1` | It acknowledged whatever account route the provider reported for a provider you named; a run that failed ended the script with success; stopped or killed, it left `yav.exe` running; the variables of a hosting Claude Code session were set to empty instead of being removed; every part after setup failed at once when it was really run | Each is corrected and tested against a stand-in program |
 | The mutation check | A build that failed counted as a mutation that the tests noticed; an entry whose text was gone stopped a run in the middle | A mutation is noticed only when tests ran and failed; every entry is checked before the first one is made |
 
@@ -397,8 +403,8 @@ the installed agents were asked what they could be asked without a model.
 * The design was not put before you in steps for approval, as the process I work by would have asked
   for. The specification asks for the implementation to begin at once and for decisions to be
   recorded; they are in [decisions.md](decisions.md), with the ones that are yours to review first.
-* The project was put under version control at the end, on 2026-09-30, when you asked for it: one
-  commit of the state described here, with no remote.
+* The project was put under version control on 2026-09-30, when you asked for it, with no remote.
+  Later changes are committed when you ask.
 * The .NET SDK 10.0.401 was installed for the current user
   (`%LOCALAPPDATA%\Microsoft\dotnet`), because the machine had runtimes and no SDK.
 
@@ -422,8 +428,9 @@ the installed agents were asked what they could be asked without a model.
   nobody is there to ask. Declining costs nothing but the agent's own look at the result: YAV runs
   the required checks itself, on the frozen candidate, in either case.
 * A version of Claude Code that does not answer `get_settings` leaves the effort Requested /
-  Unverified, which stops a run under strict policy. 2.1.284 answers it; which earlier versions do
-  was not looked up. Only 2.1.284 is called tested; every other version gets a warning.
+  Unverified, which stops a run under strict policy. 2.1.284 and 2.1.285 answer it; which earlier
+  versions do was not looked up. Only those two are called tested; every other version gets a
+  warning.
 * **A program from the Microsoft Store that an agent or a check starts is not ended with the run.**
   Windows takes it out of YAV's job. `yav doctor` says which of `pwsh`, `python` and `python3` come
   from the Store on the machine; on the machine this was built on, `pwsh` does.

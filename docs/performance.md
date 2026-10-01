@@ -55,9 +55,10 @@ prompt, and for every command the time from Enter until its first line is writte
 | The shell reading `/help`, `/status`, `/exit` from a pipe | 250 ms | 393 ms |
 
 These, and everything below that uses scripted agents, were measured with the package of this
-version as it was before its last two changes: a section that tells Model A which checks YAV runs
-itself, and the copyright in the properties of the program. Neither changes what is measured, and
-the measurements were not repeated after them.
+version as it was before its last changes: a section that tells Model A which checks YAV runs
+itself, the copyright in the properties of the program, the versions of the agents that are called
+tested, and how a turn is reported that YAV ends together with the agent's process. None of them
+changes what is measured, and the measurements were not repeated after them.
 
 ## A run, with agents that answer at once
 

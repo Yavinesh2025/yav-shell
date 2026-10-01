@@ -934,8 +934,8 @@ $mutations = @(
     @{
         Name    = 'a claude code later than the one that was tried is called tested'
         File    = 'src\Yav.Adapters\Claude\ClaudeCliAdapter.cs'
-        Find    = '                    tested = parsed == TestedVersion;'
-        Replace = '                    tested = parsed >= TestedVersion;'
+        Find    = '                    tested = TestedReleases.Contains(parsed);'
+        Replace = '                    tested = parsed >= TestedReleases[0];'
         Filter  = 'FullyQualifiedName~ClaudeDetectionTests'
     },
     @{
@@ -2310,6 +2310,27 @@ $mutations = @(
         Find    = 'PromptBuilder.ContinuationRequest(context.Requirements, context.Project.RequiredGates.ToList());'
         Replace = 'PromptBuilder.ContinuationRequest(context.Requirements);'
         Filter  = 'FullyQualifiedName~A_turn_that_did_not_finish_is_continued_in_its_own_conversation'
+    },
+    @{
+        Name    = 'a codex of a release series that was not tried is called tested'
+        File    = 'src\Yav.Adapters\Codex\CodexAppServerAdapter.cs'
+        Find    = 'version.StartsWith(series[..^1], StringComparison.Ordinal)'
+        Replace = 'version.StartsWith(series[..2], StringComparison.Ordinal)'
+        Filter  = 'FullyQualifiedName~CodexDetectionTests'
+    },
+    @{
+        Name    = 'codex exec calls a version tested that the app server does not'
+        File    = 'src\Yav.Adapters\Codex\CodexExecAdapter.cs'
+        Find    = 'CodexAppServerAdapter.IsTestedVersion(version),'
+        Replace = 'version is not null,'
+        Filter  = 'FullyQualifiedName~A_version_is_called_tested_as_it_is_for_the_app_server'
+    },
+    @{
+        Name    = 'a turn that is ended with its process is reported as the ending agent says'
+        File    = 'src\Yav.Adapters\Codex\CodexAppServerSession.cs'
+        Find    = '_abandoned = true;'
+        Replace = '_abandoned = false;'
+        Filter  = 'FullyQualifiedName~A_turn_that_ignores_the_interrupt_is_ended_with_the_agents_own_process'
     },
     @{
         Name    = 'a shell is given a console that is not there'

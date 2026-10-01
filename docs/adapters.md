@@ -14,7 +14,7 @@ two runs with real models. Provider features change; `/doctor` reports what is t
 | Adapter id | `codex-app-server` | `codex-exec` | `claude-cli` |
 | Interface | `codex app-server`, JSON lines over standard input/output | `codex exec --json` | `claude -p` with `stream-json` input and output |
 | Provider's own status | **Experimental** | Stable | Stable |
-| Tested with | Codex CLI 0.158.x | Codex CLI 0.158.x | Claude Code 2.1.284; 2.1.259 is the oldest that is accepted |
+| Tested with | Codex CLI 0.158.x and 0.159.x | Codex CLI 0.158.x and 0.159.x | Claude Code 2.1.284 and 2.1.285; 2.1.259 is the oldest that is accepted |
 | Streaming events | yes | yes | yes |
 | Interactive approvals | yes | **no** | yes |
 | Interrupt a turn | yes (`turn/interrupt`) | only by ending the process | yes (control request) |
@@ -35,7 +35,8 @@ two runs with real models. Provider features change; `/doctor` reports what is t
 
 * OpenAI documents the app server as experimental and not supported for production workloads. YAV
   labels the adapter **Experimental** everywhere and never presents it as production-supported. Its
-  protocol can change with any Codex release; a version outside `0.158.x` produces a warning.
+  protocol can change with any Codex release; a version outside `0.158.x` and `0.159.x` produces a
+  warning.
 * One `codex app-server` process serves all Codex conversations of a YAV session. It is started the first
   time it is needed. Listing models, reading the account and reading rate limits send no inference request.
 * YAV passes its role instructions as `developerInstructions`. Because that parameter replaces the
@@ -177,9 +178,10 @@ A compatibility path for non-interactive runs.
 * Model B: see [security-boundaries.md](security-boundaries.md).
 * Reported cost (`total_cost_usd`) is Claude Code's estimate. YAV shows it as *estimated*, never as a
   billing statement.
-* **Tested with one release.** Claude Code changes what it says from one release to the next: the
-  effort left the `init` message between the published types and 2.1.284. YAV therefore calls only
-  2.1.284 tested and warns for every other version. Versions before 2.1.259 are refused, because
+* **Tested with the releases that were tried.** Claude Code changes what it says from one release to
+  the next: the effort left the `init` message between the published types and 2.1.284. YAV
+  therefore calls only 2.1.284 and 2.1.285 tested, the two that ran with real models, and warns for
+  every other version. Versions before 2.1.259 are refused, because
   they lack the options that keep a reviewer read-only. A later version is used; what it does not say
   any more is shown as not confirmed, which stops a run under strict policy.
 

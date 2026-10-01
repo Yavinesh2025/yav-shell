@@ -1,29 +1,29 @@
 # Test results
 
-The complete run of the automated tests on 2026-09-30 09:54 UTC, written by `scripts\summarize-tests.ps1`.
+The complete run of the automated tests on 2026-09-30 10:56 UTC, written by `scripts\summarize-tests.ps1`.
 The agents were the scripted stand-in: no test sends a request to a model. The tests that talk to the
 installed agents are not part of this run; `docs\verification.md` says what they found.
 
 | | |
 |---|---:|
-| Tests | 2300 |
-| Passed | 2300 |
+| Tests | 2312 |
+| Passed | 2312 |
 | Failed | 0 |
 | Not run | 0 |
-| Time | 9.4 minutes |
+| Time | 9.9 minutes |
 
 | Class | Passed | Failed |
 |---|---:|---:|
 | Adapters.ClaudeApprovalTests | 13 | 0 |
 | Adapters.ClaudeCredentialTests | 5 | 0 |
-| Adapters.ClaudeDetectionTests | 18 | 0 |
+| Adapters.ClaudeDetectionTests | 20 | 0 |
 | Adapters.ClaudeSessionTests | 57 | 0 |
 | Adapters.ClaudeTurnTests | 24 | 0 |
-| Adapters.CodexApprovalAndControlTests | 39 | 0 |
+| Adapters.CodexApprovalAndControlTests | 40 | 0 |
 | Adapters.CodexClosedInputTests | 3 | 0 |
 | Adapters.CodexConnectionTests | 6 | 0 |
-| Adapters.CodexDetectionTests | 15 | 0 |
-| Adapters.CodexExecAdapterTests | 15 | 0 |
+| Adapters.CodexDetectionTests | 22 | 0 |
+| Adapters.CodexExecAdapterTests | 17 | 0 |
 | Adapters.CodexRobustnessTests | 12 | 0 |
 | Adapters.CodexSessionTests | 44 | 0 |
 | Adapters.CodexTurnTests | 36 | 0 |

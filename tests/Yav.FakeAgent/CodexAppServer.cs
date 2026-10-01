@@ -133,6 +133,13 @@ internal sealed partial class CodexAppServer
             thread.ActiveTurn?.Cancel();
         }
 
+        // Whether the turn that was cancelled is reported before the process ends is a race of its own. The
+        // scenario can make it the one where the report comes first.
+        if (Scenario.Flag(_scenario.Codex, "reportTurnWhenInputEnds") && _playing is { } ending)
+        {
+            await ending.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+
         return 0;
     }
 

@@ -15,15 +15,15 @@ namespace Yav.Adapters;
 public sealed class ClaudeCliAdapter : IAgentAdapter
 {
     public const string AdapterId = "claude-cli";
-    public const string TestedVersions = "2.1.284";
+    public const string TestedVersions = "2.1.284, 2.1.285";
     public const string PolicyUrl = "https://code.claude.com/docs/en/legal-and-compliance";
 
     // "--permission-prompts" and "--restricted" are required; the later of the two arrived in 2.1.259.
     private static readonly Version MinimumVersion = new(2, 1, 259);
 
-    // The one release this was tried with. What Claude Code says changes from one release to the next, so a
-    // later one is used and is not called tested: what it does not say any more is shown as not confirmed.
-    private static readonly Version TestedVersion = Version.Parse(TestedVersions);
+    // The releases this was tried with. What Claude Code says changes from one release to the next, so another
+    // one is used and is not called tested: what it does not say any more is shown as not confirmed.
+    private static readonly Version[] TestedReleases = [.. TestedVersions.Split(", ").Select(Version.Parse)];
 
     private readonly IProcessRunner _runner;
     private readonly TimeProvider _clock;
@@ -125,7 +125,7 @@ public sealed class ClaudeCliAdapter : IAgentAdapter
                 }
                 else
                 {
-                    tested = parsed == TestedVersion;
+                    tested = TestedReleases.Contains(parsed);
                 }
             }
         }

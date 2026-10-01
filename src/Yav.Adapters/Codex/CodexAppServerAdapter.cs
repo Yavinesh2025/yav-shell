@@ -14,8 +14,15 @@ namespace Yav.Adapters;
 public sealed class CodexAppServerAdapter : IAgentAdapter, ISandboxReporting
 {
     public const string AdapterId = "codex-app-server";
-    public const string TestedVersions = "0.158.x";
+    public const string TestedVersions = "0.158.x, 0.159.x";
     public const string ClientName = "yav_shell";
+
+    /// <summary>
+    /// Whether a version of the Codex CLI belongs to a release series this adapter was tried with. Both Codex
+    /// adapters start the same program, so both ask this.
+    /// </summary>
+    public static bool IsTestedVersion(string? version) =>
+        version is not null && TestedVersions.Split(", ").Any(series => version.StartsWith(series[..^1], StringComparison.Ordinal));
 
     /// <summary>How Codex names the user of the client as the one who decides requests for access.</summary>
     internal const string UserReviewer = "user";
@@ -98,7 +105,7 @@ public sealed class CodexAppServerAdapter : IAgentAdapter, ISandboxReporting
 
         return new AdapterDetection(
             AdapterId, Provider, true, executable, version, AdapterMaturity.Experimental, MaturityNote,
-            VersionTested: version is not null && version.StartsWith("0.158.", StringComparison.Ordinal),
+            VersionTested: IsTestedVersion(version),
             TestedVersions, problems);
     }
 

@@ -42,6 +42,10 @@ internal sealed class CodexAppServerSession : IAgentSession
     private string? _lastMessage;
     private bool _closed;
 
+    // The turn did not stop when it was asked, and the agent's process is being ended. The turn ends with the
+    // process; what the agent reports about it meanwhile does not change that.
+    private bool _abandoned;
+
     // Why the conversation is not used any more: Codex reported that someone other than the user decides its
     // requests for access, or what it reported leaves that or the limits of its sandbox unknown. The turn that
     // ran then is stopped once.
@@ -414,6 +418,8 @@ internal sealed class CodexAppServerSession : IAgentSession
             {
                 return;
             }
+
+            _abandoned = true;
         }
 
         // The turn did not end. Ending the agent's own process is what is left; other conversations of this
@@ -685,7 +691,7 @@ internal sealed class CodexAppServerSession : IAgentSession
         bool structuredRequested;
         lock (_gate)
         {
-            if (!_turnRequested)
+            if (!_turnRequested || _abandoned)
             {
                 return;
             }

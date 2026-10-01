@@ -244,6 +244,21 @@ public class CodexExecAdapterTests
         Assert.Empty(await adapter.ListModelsAsync(CancellationToken.None));
     }
 
+    [Theory]
+    [InlineData("0.159.2", true)]
+    [InlineData("0.157.9", false)]
+    public async Task A_version_is_called_tested_as_it_is_for_the_app_server(string version, bool tested)
+    {
+        // Both adapters start the same Codex CLI.
+        using var fixture = new AgentFixture().Codex(c => c["version"] = version);
+        await using var adapter = fixture.CodexExec();
+
+        var detection = await adapter.DetectAsync(CancellationToken.None);
+
+        Assert.Equal(tested, detection.VersionTested);
+        Assert.Equal("0.158.x, 0.159.x", detection.TestedVersions);
+    }
+
     [Fact]
     public async Task An_agent_that_is_signed_out_is_reported_as_such()
     {

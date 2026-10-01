@@ -28,16 +28,36 @@ public class CodexDetectionTests
         Assert.Empty(detection.Problems);
     }
 
-    [Fact]
-    public async Task A_version_outside_the_tested_range_is_pointed_out()
+    [Theory]
+    [InlineData("0.158.0")]
+    [InlineData("0.158.7")]
+    [InlineData("0.159.0")]
+    [InlineData("0.159.2")]
+    public async Task The_release_series_yav_was_tried_with_are_called_tested(string version)
     {
-        using var fixture = new AgentFixture().Codex(c => c["version"] = "0.999.0");
+        using var fixture = new AgentFixture().Codex(c => c["version"] = version);
+        await using var adapter = fixture.CodexAppServer();
+
+        var detection = await adapter.DetectAsync(CancellationToken.None);
+
+        Assert.True(detection.VersionTested);
+        Assert.Equal("0.158.x, 0.159.x", detection.TestedVersions);
+    }
+
+    [Theory]
+    [InlineData("0.157.9")]
+    [InlineData("0.160.0")]
+    [InlineData("0.999.0")]
+    [InlineData("1.159.2")]
+    public async Task A_version_outside_the_tested_range_is_pointed_out(string version)
+    {
+        using var fixture = new AgentFixture().Codex(c => c["version"] = version);
         await using var adapter = fixture.CodexAppServer();
 
         var detection = await adapter.DetectAsync(CancellationToken.None);
 
         Assert.True(detection.Found);
-        Assert.Equal("0.999.0", detection.Version);
+        Assert.Equal(version, detection.Version);
         Assert.False(detection.VersionTested);
     }
 
@@ -1881,11 +1901,19 @@ public class CodexApprovalAndControlTests
         Assert.False(string.IsNullOrEmpty(interrupt["turnId"]!.GetValue<string>()));
     }
 
-    [Fact]
-    public async Task A_turn_that_ignores_the_interrupt_is_ended_with_the_agents_own_process_after_the_grace_period()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_turn_that_ignores_the_interrupt_is_ended_with_the_agents_own_process_after_the_grace_period(bool reportsWhileEnding)
     {
+        // Ending the process closes its input first. An agent can then still report the turn as interrupted before
+        // it is gone; the turn did not stop when it was asked, and it ends with the process all the same.
         using var fixture = new AgentFixture()
-            .Codex(c => c["ignoreInterrupt"] = true)
+            .Codex(c =>
+            {
+                c["ignoreInterrupt"] = true;
+                c["reportTurnWhenInputEnds"] = reportsWhileEnding;
+            })
             .ImplementerTurn(Step.Message("Working...", "commentary"), Step.Hang());
         await using var adapter = fixture.CodexAppServer();
         await using var session = await adapter.StartSessionAsync(fixture.Request(AgentRole.Implementer), CancellationToken.None);

@@ -22,7 +22,7 @@ set a default for behavior that the specification left open.
 | **An agent that reports another working directory than the workspace stops a run under every policy** | The candidate is what is in the workspace, and the sandbox of an agent is drawn around the directory it works in. An agent that works elsewhere changes what nobody checks | - |
 | **That no key is named is shown as Requested / Unverified**, not as Verified | A subscription, a token and a cloud provider all name no key. Only what a conversation says about its account confirms a route. It stops nothing by itself | - |
 | Folders outside the workspace that an agent's own sandbox lets it write **stop a run while Quality Lock is on**; access to the network is **reported and stops nothing** | YAV asks for a sandbox that is limited to the workspace, so more than that is not what was asked for. It asks for no network and forbids none: many checks need it, and Codex leaves it to your configuration. Both are said in a warning, not only in a table | your agent's own configuration; `/quality lock off` |
-| Claude Code is called **tested for one release, 2.1.284**; every other version gets a warning | Claude Code changes what it says from one release to the next, and updates itself. A warning on most days is the price of not calling tested what was not tried | - |
+| Claude Code is called **tested for the releases that were tried, 2.1.284 and 2.1.285**, and Codex for the series **0.158 and 0.159**; every other version gets a warning | Claude Code changes what it says from one release to the next, and both agents update themselves. A warning on most days is the price of not calling tested what was not tried. You had the two newer ones added on 2026-09-30, after the second run with real models had used both | `TestedVersions` in `src/Yav.Adapters/Claude/ClaudeCliAdapter.cs` and `src/Yav.Adapters/Codex/CodexAppServerAdapter.cs` |
 | What a packaged program (Microsoft Store) starts **runs with the identity of that package** when YAV starts the program | It is what keeps those programs in the group YAV ends with a run. Left to the default of Windows, everything such a program starts leaves the group and outlives a stop | start a version of the program that is not from the Store |
 | A local edit has a command of its own, `/replace`, which the specification does not list | The specification asks for explicit literal replacements to be made locally, but names no way to ask for one. Guessing it from the wording of a request would be what the specification forbids | - |
 | `/replace` changes a text only when it occurs as often as you said, once by default | "Unambiguous" has to be decided by something that can be checked. Anything else is a task for Model A | `--count <n>`, `--all` |
@@ -154,6 +154,7 @@ or where they stand against something that comes first. Each of them can be adde
 * **What a live check needs from a model, it gets without one where that is possible.** Claude Code
   names the tools of a conversation only after a prompt. The live test that reads them sets the
   address of the API to a port of this machine that nobody listens on.
-* **The repository is under version control since 2026-09-30, as you asked:** Git, one commit of the
-  state described here, on the branch `main`, with no remote. Build output, packages and the records
-  of the runs with real models are not in it (`.gitignore`).
+* **The repository is under version control since 2026-09-30, as you asked:** Git, on the branch
+  `main`, with no remote. The first commit was made when you asked for it; later changes are
+  committed when you ask. Build output, packages and the records of the runs with real models are
+  not in it (`.gitignore`).

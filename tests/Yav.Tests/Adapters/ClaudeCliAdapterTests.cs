@@ -25,13 +25,27 @@ public class ClaudeDetectionTests
     }
 
     [Theory]
+    [InlineData("2.1.284 (Claude Code)")]
     [InlineData("2.1.285 (Claude Code)")]
+    public async Task The_releases_yav_was_tried_with_are_called_tested(string version)
+    {
+        using var fixture = new AgentFixture().Claude(c => c["version"] = version);
+        await using var adapter = fixture.ClaudeCli();
+
+        var detection = await adapter.DetectAsync(CancellationToken.None);
+
+        Assert.True(detection.VersionTested);
+        Assert.Equal("2.1.284, 2.1.285", detection.TestedVersions);
+    }
+
+    [Theory]
+    [InlineData("2.1.286 (Claude Code)")]
     [InlineData("2.1.259 (Claude Code)")]
     [InlineData("2.2.0 (Claude Code)")]
     [InlineData("3.0.0 (Claude Code)")]
-    public async Task A_version_other_than_the_one_yav_was_tested_with_can_be_used_and_is_not_called_tested(string version)
+    public async Task A_version_other_than_the_ones_yav_was_tested_with_can_be_used_and_is_not_called_tested(string version)
     {
-        // Claude Code changes what it says from one release to the next. What was tried is one release.
+        // Claude Code changes what it says from one release to the next. What was tried is two releases.
         using var fixture = new AgentFixture().Claude(c => c["version"] = version);
         await using var adapter = fixture.ClaudeCli();
 
@@ -39,7 +53,7 @@ public class ClaudeDetectionTests
 
         Assert.True(detection.Usable);
         Assert.False(detection.VersionTested);
-        Assert.Equal("2.1.284", detection.TestedVersions);
+        Assert.Equal("2.1.284, 2.1.285", detection.TestedVersions);
     }
 
     [Fact]

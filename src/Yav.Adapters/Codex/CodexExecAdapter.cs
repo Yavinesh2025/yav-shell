@@ -93,7 +93,7 @@ public sealed class CodexExecAdapter : IAgentAdapter
 
         return new AdapterDetection(
             AdapterId, Provider, true, executable, version, AdapterMaturity.Stable, Note,
-            version is not null && version.StartsWith("0.158.", StringComparison.Ordinal),
+            CodexAppServerAdapter.IsTestedVersion(version),
             CodexAppServerAdapter.TestedVersions, problems);
     }
 
