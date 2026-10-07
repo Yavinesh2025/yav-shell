@@ -11,13 +11,19 @@ personal, educational and commercial work, on any number of computers.
 The source code is published so that it can be read and reviewed. Reading it,
 and building it to check that a published yav.exe matches it, is permitted.
 
+Viewing and forking the repository of YAV Shell on GitHub, as GitHub's Terms
+of Service permit for public repositories, is permitted. A fork grants no
+rights beyond those this notice states.
+
 NOT PERMITTED WITHOUT THE PRIOR WRITTEN PERMISSION OF THE COPYRIGHT HOLDER
 - copying, modifying or translating YAV Shell or any part of it - its source
   code, documentation, templates, tests, benchmark or packages - or making
-  works based on it, except as needed to read and build it as stated above;
+  works based on it, except as needed to read and build it, or to view and
+  fork its repository on GitHub, as stated above;
 - distributing, publishing, sublicensing, renting or selling YAV Shell or any
   part of it, or otherwise making it available to others, other than by
-  pointing them to where the copyright holder publishes it;
+  pointing them to where the copyright holder publishes it or by forking its
+  repository on GitHub as stated above;
 - removing or changing this notice or any copyright notice.
 
 NO WARRANTY

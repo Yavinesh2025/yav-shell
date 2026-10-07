@@ -90,7 +90,9 @@ jobs:
           "dotnet: $((Get-Command dotnet).Source)"
           dotnet --version
           dotnet --list-runtimes
+          # The tests run the checks of the benchmark tasks, with python or with node.
           if (Get-Command python -ErrorAction SilentlyContinue) { python --version }
+          if (Get-Command node -ErrorAction SilentlyContinue) { "Node.js: $(node --version)" }
           exit 0
 
       # Without -Live, scripts\test.ps1 runs the fixture tests only: the agents are the scripted stand-in, and no test

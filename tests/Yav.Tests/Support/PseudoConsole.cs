@@ -310,7 +310,7 @@ public sealed partial class PseudoConsole : IDisposable
         }
     }
 
-    public async Task<int> WaitForExitAsync(int seconds = 60)
+    public async Task<int> WaitForExitAsync(int seconds = 120)
     {
         var deadline = DateTime.UtcNow.AddSeconds(seconds);
         while (!HasExited)

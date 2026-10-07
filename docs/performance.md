@@ -56,8 +56,8 @@ prompt, and for every command the time from Enter until its first line is writte
 
 | Where | First start | Median of five more | Slowest |
 |---|---:|---:|---:|
-| 0.2.0: this machine, `dist\yav.exe`, in an environment without .NET and Git | 118 ms | 62 ms | 62 ms |
-| 0.2.0: a new Windows (Windows Sandbox), `dist\yav.exe` | 1908 ms | 1815 ms | 1871 ms |
+| 0.2.0: this machine, `dist\yav.exe`, in an environment without .NET and Git | 160 ms | 71 ms | 74 ms |
+| 0.2.0: a new Windows (Windows Sandbox), `dist\yav.exe` | 1958 ms | 1776 ms | 1798 ms |
 | 0.1.1: this machine, from the folder of the package, in an environment without .NET and Git | 98 ms | 70 ms | 76 ms |
 | 0.1.1: a new Windows (Windows Sandbox), from the folder of the package | 339 ms | 61 ms | 63 ms |
 
@@ -68,13 +68,13 @@ prompt, and for every command the time from Enter until its first line is writte
 
 | 0.2.0 | This machine | A new Windows |
 |---|---:|---:|
-| `yav doctor --json`, the first time, no agent installed | 144 ms | 1987 ms |
-| The shell reading `/help`, `/status`, `/exit` from a pipe | 168 ms | 1975 ms |
+| `yav doctor --json`, the first time, no agent installed | 141 ms | 1981 ms |
+| The shell reading `/help`, `/status`, `/exit` from a pipe | 170 ms | 1977 ms |
 
 The numbers of 0.2.0 were taken on 2026-10-07 by `scripts\verify-package.ps1` on this machine and
 by `scripts\verify-package.ps1 -Sandbox` in Windows Sandbox; `yav doctor` and the shell were started
 once each. The times of Windows Sandbox are those of a new Windows whose Microsoft Defender scans a
-new file of 95 MB; they cannot be compared with those of this machine.
+new file of 95.7 MB; they cannot be compared with those of this machine.
 
 The numbers of 0.1.1, and everything below that uses scripted agents, were measured with the package
 of 0.1.1 as it was before its last changes: a section that tells Model A which checks YAV runs
@@ -253,7 +253,7 @@ that is why the single file is the package now.
 
 | | Files | Size | `yav --version`, first start | Later starts |
 |---|---:|---:|---:|---:|
-| 0.2.0: the single file, which is the package | 1 | 95.6 MB | 118 ms | 62 ms |
+| 0.2.0: the single file, which is the package | 1 | 95.7 MB | 160 ms | 71 ms |
 | 0.1.0, 2026-09-29: the folder, the program next to its libraries (what the package of 0.1.0 and 0.1.1 was) | 226 | 86 MB | 66 ms | 58 ms |
 | 0.1.0, 2026-09-29: the single file, everything in `yav.exe` | 1 | 94 MB | 125 ms | 61 ms |
 
@@ -261,7 +261,7 @@ The 0.2.0 row was measured on 2026-10-07 by `scripts\clean-machine-check.ps1`, w
 `scripts\verify-package.ps1` runs in Windows PowerShell 5.1, on this machine with a PATH that holds
 nothing but Windows and a directory for temporary files of its own. It started `yav --version` hidden
 and with its input and output redirected, once and then five times more; "later starts" is the
-median of the five, and the slowest of them took 62 ms as well.
+median of the five, and the slowest of them took 74 ms.
 
 The single file unpacks a native library (SQLite, 1.9 MB in 0.1.0) into a directory of the user when
 it is started for the first time; the first start is slower for that. The directory is

@@ -1,4 +1,4 @@
-SQLite (the native library e_sqlite3.dll, as built by SQLitePCLRaw.lib.e_sqlite3 2.1.12), inside yav.exe
+SQLite 3.53.3 (the native library e_sqlite3.dll, as built by SQLitePCLRaw.lib.e_sqlite3 2.1.12), inside yav.exe
 License: public domain (https://www.sqlite.org/copyright.html)
 Text copied verbatim from: the section "License for SQLite" of NOTICE.TXT of github.com/ericsink/SQLitePCL.raw at tag v2.1.12
 

@@ -97,6 +97,36 @@ public class BenchToolTests
     }
 
     [Theory]
+    [InlineData(false, 1)]
+    [InlineData(true, 0)]
+    public async Task The_check_for_a_regression_test_leaves_no_copy_behind_whether_it_fails_or_passes(bool solved, int exitCode)
+    {
+        using var work = new TempDirectory("bench verify");
+        // The check copies the project into the temporary directory of Node.js, which is this one.
+        using var temp = new TempDirectory("node temp");
+        var task = Task("12-regression-test");
+        using var bench = await Workbench.CreateAsync(task, work.Path, CancellationToken.None);
+        if (solved)
+        {
+            bench.Overlay(task.Steps[0].SolutionDirectory);
+        }
+
+        var check = task.Steps[0].Checks.Single(c => c.Id == "regression");
+        var runner = new Yav.Platform.Processes.ProcessRunner();
+        var result = await runner.RunAsync(
+            new Yav.Core.Ports.ProcessSpec(
+                runner.Resolve(check.Command)!,
+                check.Arguments,
+                bench.Project,
+                new Dictionary<string, string?> { ["TEMP"] = temp.Path, ["TMP"] = temp.Path }),
+            new Yav.Core.Ports.CaptureOptions(Timeout: TimeSpan.FromSeconds(check.TimeoutSeconds)),
+            CancellationToken.None);
+
+        Assert.True(result.ExitCode == exitCode, result.StandardOutput + result.StandardError);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(temp.Path));
+    }
+
+    [Theory]
     [MemberData(nameof(TaskIds))]
     public void The_solution_of_a_task_does_not_touch_what_decides_about_it(string id)
     {

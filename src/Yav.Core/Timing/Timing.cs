@@ -19,7 +19,10 @@ public enum SpanKind
     Acceptance,
 }
 
-/// <summary>A measured interval. Durations come from a monotonic clock; the wall-clock start is kept for display.</summary>
+/// <summary>
+/// A measured interval. Durations come from a monotonic clock; the wall-clock start is kept for display. A span
+/// that is given the times it began and ended, as a tool is by the reports of its agent, lasts from one to the other.
+/// </summary>
 public sealed record TimingSpan(
     string SpanId,
     string? RunId,
@@ -37,7 +40,8 @@ public sealed class TimingRecorder(TimeProvider clock, string? runId)
 {
     private readonly Lock _gate = new();
     private readonly List<TimingSpan> _completed = [];
-    private readonly Dictionary<string, (TimingSpan Span, long StartTimestamp)> _open = [];
+    // Before: how long the span had been going when it was started, for one that is given the time it began.
+    private readonly Dictionary<string, (TimingSpan Span, long StartTimestamp, TimeSpan Before)> _open = [];
 
     public TimeProvider Clock => clock;
 
@@ -45,12 +49,18 @@ public sealed class TimingRecorder(TimeProvider clock, string? runId)
 
     public event Action<TimingSpan>? SpanCompleted;
 
-    public SpanScope Start(SpanKind kind, string label, string? parallelGroup = null)
+    /// <param name="startedAt">
+    /// When the span began, if that was before now: when an agent reported the start of a tool, for one that is
+    /// taken up only now. Null, or a time still to come, begins the span now.
+    /// </param>
+    public SpanScope Start(SpanKind kind, string label, string? parallelGroup = null, DateTimeOffset? startedAt = null)
     {
-        var span = new TimingSpan(Ids.NewId("s"), runId, kind, label, clock.GetUtcNow(), null, parallelGroup);
+        var now = clock.GetUtcNow();
+        var began = startedAt is { } given && given < now ? given : now;
+        var span = new TimingSpan(Ids.NewId("s"), runId, kind, label, began, null, parallelGroup);
         lock (_gate)
         {
-            _open[span.SpanId] = (span, clock.GetTimestamp());
+            _open[span.SpanId] = (span, clock.GetTimestamp(), now - began);
         }
 
         return new SpanScope(this, span.SpanId);
@@ -67,7 +77,7 @@ public sealed class TimingRecorder(TimeProvider clock, string? runId)
         }
     }
 
-    internal void End(string spanId)
+    internal void End(string spanId, DateTimeOffset? endedAt = null)
     {
         TimingSpan finished;
         lock (_gate)
@@ -77,7 +87,11 @@ public sealed class TimingRecorder(TimeProvider clock, string? runId)
                 return;
             }
 
-            finished = entry.Span with { Duration = clock.GetElapsedTime(entry.StartTimestamp) };
+            var measured = entry.Before + clock.GetElapsedTime(entry.StartTimestamp);
+
+            // An end that is given is taken when the span can have ended then: not before it began, and not after now.
+            var given = endedAt - entry.Span.StartedAt;
+            finished = entry.Span with { Duration = given >= TimeSpan.Zero && given <= measured ? given : measured };
             _completed.Add(finished);
         }
 
@@ -87,6 +101,12 @@ public sealed class TimingRecorder(TimeProvider clock, string? runId)
     public readonly struct SpanScope(TimingRecorder owner, string spanId) : IDisposable
     {
         public void Dispose() => owner.End(spanId);
+
+        /// <summary>
+        /// Ends the span at a time that has passed: when an agent reported the end of a tool, for one that is taken
+        /// up only now. A time before the span began, or one still to come, is not taken; the span ends now.
+        /// </summary>
+        public void End(DateTimeOffset endedAt) => owner.End(spanId, endedAt);
     }
 }
 

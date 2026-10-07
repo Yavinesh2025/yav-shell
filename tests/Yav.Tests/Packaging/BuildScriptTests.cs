@@ -397,12 +397,18 @@ public class BuildScriptTests
               <Results>
                 <UnitTestResult testId="a" testName="Yav.Tests.Some.A" outcome="Passed" />
                 <UnitTestResult testId="b" testName="Yav.Tests.Some.B" outcome="Failed" />
+                <UnitTestResult testId="c" testName="Yav.Tests.Store.C" outcome="Passed" />
+                <UnitTestResult testId="d" testName="Yav.Tests.Store.D" outcome="NotExecuted">
+                  <Output><ErrorInfo><Message>Needs PowerShell 7 from the Microsoft Store.</Message></ErrorInfo></Output>
+                </UnitTestResult>
               </Results>
               <TestDefinitions>
                 <UnitTest id="a"><TestMethod className="Yav.Tests.Some" name="A" /></UnitTest>
                 <UnitTest id="b"><TestMethod className="Yav.Tests.Some" name="B" /></UnitTest>
+                <UnitTest id="c"><TestMethod className="Yav.Tests.Store" name="C" /></UnitTest>
+                <UnitTest id="d"><TestMethod className="Yav.Tests.Store" name="D" /></UnitTest>
               </TestDefinitions>
-              <ResultSummary outcome="Failed"><Counters total="2" executed="2" passed="1" failed="1" /></ResultSummary>
+              <ResultSummary outcome="Failed"><Counters total="4" executed="3" passed="2" failed="1" /></ResultSummary>
             </TestRun>
             """);
         var inRepository = Path.Combine(Repository, "docs", "test-results.md");
@@ -413,10 +419,14 @@ public class BuildScriptTests
             $"& {Quoted(Path.Combine(Repository, "scripts", "summarize-tests.ps1"))} -Results {Quoted(directory.File("run.trx"))} -Output {Quoted(summary)} | Out-Null");
 
         var lines = File.ReadAllLines(summary);
-        Assert.Contains("| Tests | 2 |", lines);
+        Assert.Contains("| Tests | 4 |", lines);
         Assert.Contains("| Failed | 1 |", lines);
+        Assert.Contains("| Not run | 1 |", lines);
         Assert.Contains("| Time | 3 minutes |", lines);
-        Assert.Contains("| Some | 1 | 1 |", lines);
+        // A skipped test was not run, and the table of the classes does not count it as failed either.
+        Assert.Contains("| Class | Passed | Failed | Not run |", lines);
+        Assert.Contains("| Some | 1 | 1 | 0 |", lines);
+        Assert.Contains("| Store | 1 | 0 | 1 |", lines);
         Assert.Equal(before, File.ReadAllBytes(inRepository));
     }
 

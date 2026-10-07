@@ -33,6 +33,61 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~ProcessRunnerTests'
     },
     @{
+        Name    = 'the program of an installation made with no-register offers to install itself'
+        File    = 'src\Yav.Console\Install\InstallOffer.cs'
+        Find    = '        if (situation.FromInstallation)'
+        Replace = '        if (situation.FromInstallation && !situation.FromInstallation)'
+        Filter  = 'FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'a manifest beside the program that cannot be read makes it an installed copy'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = 'ReadManifest(Path.Combine(folder, ManifestName)).Manifest is not null;'
+        Replace = 'ReadManifest(Path.Combine(folder, ManifestName)).Exists;'
+        Filter  = 'FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'removing the data asks before it looks for an installation'
+        File    = 'src\Yav.Console\Install\InstallCommand.cs'
+        Find    = 'if (world.Installer.InstallationToRemove(options.InstallDirectory ?? world.InstallDirectory, world.Program) is null)'
+        Replace = 'if (world.Installer.InstallationToRemove(options.InstallDirectory ?? world.InstallDirectory, world.Program) is null && options.RemoveData && !options.RemoveData)'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'an installation the offer started cannot be stopped'
+        File    = 'src\Yav.Console\Install\InstallOffer.cs'
+        Find    = '            world, new InstallOptions { Directory = directory ?? world.InstallDirectory }, cancellationToken).ConfigureAwait(false);'
+        Replace = '            world, new InstallOptions { Directory = directory ?? world.InstallDirectory }, CancellationToken.None).ConfigureAwait(false);'
+        Filter  = 'FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'a control c while the offer asks is followed by an installation'
+        File    = 'src\Yav.Console\Install\InstallOffer.cs'
+        Find    = '        cancellationToken.ThrowIfCancellationRequested();'
+        Replace = '        _ = cancellationToken.IsCancellationRequested;'
+        Filter  = 'FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'the program of an installation reads the registry to find out that it is installed'
+        File    = 'src\Yav.Console\Install\InstallOffer.cs'
+        Find    = '        var installed = asks && !fromInstallation ? world.Installer.Current() : null;'
+        Replace = '        var installed = asks ? world.Installer.Current() : null;'
+        Filter  = 'FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'a registry that cannot be read before the data is asked about is reported as a defect'
+        File    = 'src\Yav.Console\Install\InstallCommand.cs'
+        Find    = '            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or ArgumentException or NotSupportedException)
+            {
+                await world.Error.WriteLineAsync($"yav: the removal could not be completed: {ex.Message}").ConfigureAwait(false);
+                return ExitCodes.Failed;
+            }
+
+            var hasData = Directory.Exists(home);'
+        Replace = '            var hasData = Directory.Exists(home);'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
         Name    = 'a build of the source tree removes the installation of the user'
         File    = 'src\Yav.Console\Install\InstallCommand.cs'
         Find    = '        if (!world.IsSingleFile && options.InstallDirectory is null)'
@@ -494,6 +549,69 @@ $mutations = @(
         Find    = "                _pendingCarriageReturn = true;`n                return;"
         Replace = "                output.Append(c);`n                return;"
         Filter  = 'FullyQualifiedName~TerminalSanitizerTests'
+    },
+    @{
+        Name    = 'the start of a tool counts from when its report is taken up'
+        File    = 'src\Yav.Coordinator\TurnDriver.cs'
+        Find    = 'startedAt: reportedAt >= state.Began ? reportedAt : null);'
+        Replace = 'startedAt: null);'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Coordinator.ToolTimeTests'
+    },
+    @{
+        Name    = 'the end of a tool counts from when its report is taken up'
+        File    = 'src\Yav.Coordinator\TurnDriver.cs'
+        Find    = '            tool.End(reportedAt);'
+        Replace = '            tool.Dispose();'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Coordinator.ToolTimeTests'
+    },
+    @{
+        Name    = 'a report from before the turn is taken for the start of a tool'
+        File    = 'src\Yav.Coordinator\TurnDriver.cs'
+        Find    = 'reportedAt >= state.Began ? reportedAt : null'
+        Replace = 'reportedAt'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Coordinator.ToolTimeTests'
+    },
+    @{
+        Name    = 'a tool that is not a command counts from when its reports are taken up'
+        File    = 'src\Yav.Coordinator\TurnDriver.cs'
+        Find    = 'BeginTool(context, role, tool.ItemId, "tool", tool.At, state);'
+        Replace = 'BeginTool(context, role, tool.ItemId, "tool", default, state);'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Coordinator.ToolTimeTests'
+    },
+    @{
+        Name    = 'a span given when it began begins when it is started'
+        File    = 'src\Yav.Core\Timing\Timing.cs'
+        Find    = '        var began = startedAt is { } given && given < now ? given : now;'
+        Replace = '        var began = now;'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Core.TimingTests'
+    },
+    @{
+        Name    = 'a span begins at a time still to come'
+        File    = 'src\Yav.Core\Timing\Timing.cs'
+        Find    = '        var began = startedAt is { } given && given < now ? given : now;'
+        Replace = '        var began = startedAt ?? now;'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Core.TimingTests'
+    },
+    @{
+        Name    = 'a span given when it began loses the time before it was started'
+        File    = 'src\Yav.Core\Timing\Timing.cs'
+        Find    = '            var measured = entry.Before + clock.GetElapsedTime(entry.StartTimestamp);'
+        Replace = '            var measured = clock.GetElapsedTime(entry.StartTimestamp);'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Core.TimingTests'
+    },
+    @{
+        Name    = 'a span ends at a time it cannot have ended at'
+        File    = 'src\Yav.Core\Timing\Timing.cs'
+        Find    = 'Duration = given >= TimeSpan.Zero && given <= measured ? given : measured'
+        Replace = 'Duration = given ?? measured'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Core.TimingTests'
+    },
+    @{
+        Name    = 'a span given when it ended ends when it is ended'
+        File    = 'src\Yav.Core\Timing\Timing.cs'
+        Find    = 'Duration = given >= TimeSpan.Zero && given <= measured ? given : measured'
+        Replace = 'Duration = given > TimeSpan.MaxValue ? given : measured'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Core.TimingTests'
     },
     @{
         Name    = 'an answer that changes nothing is left in checking'
@@ -3394,6 +3512,13 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~BuildScriptTests'
     },
     @{
+        Name    = 'a test that was not run is counted as failed in the table of the classes'
+        File    = 'scripts\summarize-tests.ps1'
+        Find    = 'default { $classes[$name].NotRun++ }'
+        Replace = 'default { $classes[$name].Failed++ }'
+        Filter  = 'FullyQualifiedName~The_summary_of_the_tests_is_written'
+    },
+    @{
         Name    = 'the package is published as a program with its libraries beside it'
         File    = 'scripts\package.ps1'
         Find    = "    '-p:PublishSingleFile=true',"
@@ -3494,16 +3619,16 @@ $mutations = @(
     @{
         Name    = 'the time an agent spends in its tools is not measured'
         File    = 'src\Yav.Coordinator\TurnDriver.cs'
-        Find    = '                BeginTool(context, role, started.ItemId, "command", state);'
+        Find    = '                BeginTool(context, role, started.ItemId, "command", started.At, state);'
         Replace = '                _ = started;'
-        Filter  = 'FullyQualifiedName~ChecksAndSourceTests'
+        Filter  = 'FullyQualifiedName~ChecksAndSourceTests|FullyQualifiedName~Yav.Tests.Coordinator.ToolTime'
     },
     @{
         Name    = 'what a command was is kept with the measurement of it'
         File    = 'src\Yav.Coordinator\TurnDriver.cs'
-        Find    = '                BeginTool(context, role, started.ItemId, "command", state);'
-        Replace = '                BeginTool(context, role, started.ItemId, started.Command, state);'
-        Filter  = 'FullyQualifiedName~ChecksAndSourceTests|FullyQualifiedName~ShellRecordCommandTests.Latency_tells'
+        Find    = '                BeginTool(context, role, started.ItemId, "command", started.At, state);'
+        Replace = '                BeginTool(context, role, started.ItemId, started.Command, started.At, state);'
+        Filter  = 'FullyQualifiedName~ChecksAndSourceTests|FullyQualifiedName~Yav.Tests.Coordinator.ToolTime|FullyQualifiedName~ShellRecordCommandTests.Latency_tells'
     },
     @{
         Name    = 'a tool that had not ended with its turn is not measured at all'
@@ -3517,7 +3642,7 @@ $mutations = @(
         File    = 'src\Yav.Core\Timing\Timing.cs'
         Find    = '            InTools = WallClock(spans.Where(s => s.Kind == SpanKind.ToolActivity)),'
         Replace = '            InTools = TimeSpan.Zero,'
-        Filter  = 'FullyQualifiedName~ChecksAndSourceTests'
+        Filter  = 'FullyQualifiedName~ChecksAndSourceTests|FullyQualifiedName~Yav.Tests.Coordinator.ToolTime'
     },
     @{
         Name    = 'long paths are left to what the repository says about them'

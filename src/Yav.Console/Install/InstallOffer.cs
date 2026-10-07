@@ -11,8 +11,9 @@ public enum OfferKind
     None,
 
     /// <summary>
-    /// No installation is listed under "Installed apps", or its program is gone (one made with --no-register counts as
-    /// none): installing the program that runs is offered.
+    /// No installation is listed under "Installed apps", or its program is gone, and the program that runs is not in an
+    /// installation directory: installing it is offered. One made with --no-register is not listed; only its own program
+    /// knows that it is installed.
     /// </summary>
     Install,
 
@@ -25,6 +26,10 @@ public enum OfferKind
 /// <param name="OwnWindow">Windows made the console for yav alone, as when yav.exe is opened from Explorer.</param>
 /// <param name="DeclinedBefore">The user answered no before, in a console that was open already.</param>
 /// <param name="Installed">The installation "Installed apps" knows of and whose program exists. Null when there is none.</param>
+/// <param name="FromInstallation">
+/// The folder of the program holds a readable yav-install.json of YAV Shell: the program is an installed copy, whether
+/// "Installed apps" lists it or not (see <see cref="Installer.RunsFromInstallation"/>).
+/// </param>
 public sealed record OfferSituation(
     bool IsSingleFile,
     bool CanAsk,
@@ -32,7 +37,8 @@ public sealed record OfferSituation(
     bool DeclinedBefore,
     string Program,
     string Version,
-    InstallRegistration? Installed);
+    InstallRegistration? Installed,
+    bool FromInstallation);
 
 /// <summary>
 /// What 'yav' does before the shell starts when the program that runs is not installed: it offers to install
@@ -76,6 +82,13 @@ public static class InstallOffer
             return OfferKind.None;
         }
 
+        if (situation.FromInstallation)
+        {
+            // Started from an installation directory, the program is installed, also when "Installed apps" does not list
+            // it: an installation made with --no-register is neither installed again nor registered after all.
+            return OfferKind.None;
+        }
+
         if (situation.Installed is not { } installed)
         {
             // Opened from Explorer, a program asks every time: that is how a download is installed.
@@ -109,9 +122,12 @@ public static class InstallOffer
 
     private static async Task<int?> OfferCoreAsync(InstallSurroundings world, bool declinedBefore, Func<bool> rememberDecline, Step step, CancellationToken cancellationToken)
     {
-        var installed = world.IsSingleFile && world.CanAsk ? world.Installer.Current() : null;
+        // A program in an installation directory is installed: the registry is not read for it.
+        var asks = world.IsSingleFile && world.CanAsk;
+        var fromInstallation = asks && Installer.RunsFromInstallation(world.Program);
+        var installed = asks && !fromInstallation ? world.Installer.Current() : null;
         var kind = Decide(new OfferSituation(
-            world.IsSingleFile, world.CanAsk, world.OwnWindow, declinedBefore, world.Program, AppServices.Version, installed));
+            world.IsSingleFile, world.CanAsk, world.OwnWindow, declinedBefore, world.Program, AppServices.Version, installed, fromInstallation));
         if (kind == OfferKind.None)
         {
             return null;
@@ -142,6 +158,9 @@ public static class InstallOffer
 
         step.Doing = "asking";
         var answer = await AskAsync(world, question, cancellationToken).ConfigureAwait(false);
+
+        // Control+C while it asked stops the offer, whatever line the console handed over after it: nothing is installed.
+        cancellationToken.ThrowIfCancellationRequested();
         if (answer is null)
         {
             // Neither yes nor no: the input ended, or three answers were something else. Nothing is installed or

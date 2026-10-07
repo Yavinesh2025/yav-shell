@@ -111,7 +111,7 @@ await using (services)
     if (options.Mode == CliMode.Interactive && options.ProjectPath is null)
     {
         var offered = Stopwatch.GetTimestamp();
-        if (await InstallOffer.OfferAsync(services, host, stop.Token) is { } ended)
+        if (await OfferToInstallAsync(services, host) is { } ended)
         {
             host.RestoreOriginal();
             return ended;
@@ -196,6 +196,39 @@ await using (services)
     finally
     {
         host.RestoreOriginal();
+    }
+}
+
+// While the start-up offer runs, the first Control+C stops an installation it started between two files, as in
+// 'yav install': what was written is listed and can be removed or completed. A second one ends the process. The
+// shell sets up its own Control+C afterwards.
+static async Task<int?> OfferToInstallAsync(AppServices services, ConsoleHost host)
+{
+    // Not disposed: a Control+C that arrives just as the offer ends may still reach the handler, which cancels it.
+    var cancel = new CancellationTokenSource();
+    ConsoleCancelEventHandler stopFirst = (_, e) =>
+    {
+        if (!cancel.IsCancellationRequested)
+        {
+            e.Cancel = true;
+            cancel.Cancel();
+        }
+    };
+
+    System.Console.CancelKeyPress += stopFirst;
+    try
+    {
+        return await InstallOffer.OfferAsync(services, host, cancel.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        // Stopped while it asked: nothing was installed. The shell starts on a line of its own, as at the end of the input.
+        System.Console.Out.WriteLine();
+        return null;
+    }
+    finally
+    {
+        System.Console.CancelKeyPress -= stopFirst;
     }
 }
 

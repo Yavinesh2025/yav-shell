@@ -48,7 +48,9 @@ YAV runs in a console and is started with `yav`.
 
 `yav.exe` asks this only where somebody can answer: not when its input or output is redirected, and
 not in a console window that was started hidden. There the shell starts without asking, and
-`yav install` and `yav uninstall` do not wait for Enter when they are done.
+`yav install` and `yav uninstall` do not wait for Enter when they are done. Nor does it ask where it
+is installed already: a copy installed with `--no-register`, or any `yav.exe` that runs from a
+directory holding a `yav-install.json` of YAV Shell, is not offered installation.
 
 Double-clicked, `yav.exe` runs in the console window Windows opens for it; after the installation the
 window waits for Enter and closes. Started in a console you had open already, YAV installs and then
@@ -72,11 +74,11 @@ started in a console; `yav install` installs it whenever you want. When that ans
 YAV says so, and it asks again at the next start. A double-click asks every time YAV Shell is not
 installed.
 
-The offer never keeps the shell from starting. When something goes wrong in it - while it finds out
-what is installed, asks, installs or saves your answer - YAV says which of these it was doing and what
-went wrong, and starts the shell. An installation that is refused is said on the error output; in a
-console that was open already the shell starts after it, and a window Windows opened for `yav.exe`
-shows it until you press Enter and then closes (exit code 5).
+In a console that was open already, the shell always starts after the offer. In a window Windows
+opened for `yav.exe`, the window closes after the installation, once you press Enter: with exit code 0
+when it worked, and with 5 when it was refused or failed, the reason on the error output. Only when the
+offer itself goes wrong - while it finds out what is installed, asks or saves your answer, or with an
+error YAV did not expect - does YAV say which step it was in and what went wrong, and start the shell.
 
 From a console:
 
@@ -90,14 +92,14 @@ yav uninstall [--dir <path>] [--remove-data]
 | `--dir <path>` | the installation directory. Default for `install`: where "Installed apps" says YAV Shell is installed, otherwise `%LOCALAPPDATA%\Programs\YavShell`. Default for `uninstall`: that installation, otherwise the folder of the `yav.exe` that runs, when it holds `yav-install.json`. Refused by `install`, before anything is written: the root of a drive; a directory in which the path of `yav.exe` would have 260 characters or more; a directory whose name holds `;`, unless you add `--no-path`; a directory that is not empty and holds no readable `yav-install.json` (or the `package-manifest.json` of 0.1.1); your data directory, a directory that holds it or lies inside it; and, while YAV Shell is installed in another directory, a different `--dir` unless you add `--no-register` (install there again, or remove that installation first). `--dir` followed by something that begins with `-` is refused as a `--dir` without a value (exit code 64); a directory whose name begins with a dash is named with `--dir=<path>` |
 | `--no-path` | leaves the PATH of your account as it is |
 | `--no-register` | does not add YAV Shell to "Installed apps" |
-| `--remove-data` | removes your data directory as well, and the API key YAV stored for it in the Windows Credential Manager. You are asked to type `yes`; where nobody can be asked, nothing is removed, the program neither |
+| `--remove-data` | removes your data directory as well, and the API key YAV stored for it in the Windows Credential Manager. You are asked to type `yes`; where nobody can be asked, nothing is removed, the program neither. When YAV Shell is not installed, nothing is asked and nothing is removed; YAV says so, and that the data folder can be deleted by hand |
 
 `yav uninstall`, and "Uninstall" under "Installed apps", remove what the installation put there - it
 is listed in `yav-install.json` in the installation directory - together with the PATH entry and the
 entry under "Installed apps". Files you put into that directory yourself stay, and so does the
 directory then. Your data stays, and YAV says where it was kept: to remove it as well, delete that
 folder (and the API key YAV stored, whose name in the Windows Credential Manager begins with
-`YavShell/`), or name `--remove-data`.
+`YavShell/`).
 
 `--remove-data` removes the data directory only when it is YAV's and nothing else's: it holds
 `yav.db`, and at its top level nothing but what YAV creates there - the files `yav.db`, `yav.db-wal`,
@@ -141,10 +143,11 @@ After the files are written, YAV starts the installed `yav.exe` once with `--ver
 not answer with its version, the PATH and "Installed apps" are left as they are, the message says why
 (it could not be started, gave no answer within 60 seconds, or ended with an exit code, with the first
 line of what it wrote to its error output), and `yav uninstall --dir "<dir>"` removes the files. Ctrl+C
-stops an installation between two files; YAV then says that `yav-install.json` names what may have
-been written, and that `yav install --dir "<dir>"` completes the installation and
-`yav uninstall --dir "<dir>"` removes it. A file whose writing was interrupted is left as
-`<name>.partial-<8 hex digits>`; the next `yav install` or `yav uninstall` deletes it.
+stops an installation between two files, also one started from the offer at the start; YAV then says
+that `yav-install.json` names what may have been written, and that `yav install --dir "<dir>"`
+completes the installation and `yav uninstall --dir "<dir>"` removes it. A file whose writing was
+interrupted is left as `<name>.partial-<8 hex digits>`; the next `yav install` or `yav uninstall`
+deletes it.
 
 `yav install` and `yav uninstall` end with exit code 0 when they did what was asked, with 5 when they
 refused or failed (the reason is written to the error output), and with 64 for a command line they do
@@ -474,8 +477,10 @@ stage from the first look at the project to the apply. Stages that ran side by s
 The time a candidate waited for your decision is "waiting for you" and not part of the active time,
 and what no stage accounts for is shown as such, so that the stages never pass for the whole.
 The time the agents spent in tools they ran, such as commands, is measured from what they report
-and shown apart. What is left of a turn is provider time: waiting, reasoning and answering, which
-no provider tells apart. What is kept with a measurement never includes a request or a command.
+and shown apart: from when an agent reported the start of a tool's run to when it reported its end,
+at the times YAV received those reports, not when it handled them. What is left of a turn is
+provider time: waiting, reasoning and answering, which no provider tells apart. What is kept with a
+measurement never includes a request or a command.
 
 ### Local, without a model
 

@@ -16,8 +16,8 @@ public class InstallOfferTests
 
     private static OfferSituation Situation(
         bool singleFile = true, bool canAsk = true, bool ownWindow = false, bool declinedBefore = false,
-        string program = Program, string version = "0.2.0", InstallRegistration? installed = null) =>
-        new(singleFile, canAsk, ownWindow, declinedBefore, program, version, installed);
+        string program = Program, string version = "0.2.0", InstallRegistration? installed = null, bool fromInstallation = false) =>
+        new(singleFile, canAsk, ownWindow, declinedBefore, program, version, installed, fromInstallation);
 
     [Fact]
     public void A_copy_that_is_not_installed_offers_to_install_itself()
@@ -51,6 +51,15 @@ public class InstallOfferTests
         var installed = new InstallRegistration(InstalledHere, "0.1.0");
 
         Assert.Equal(OfferKind.None, InstallOffer.Decide(Situation(program: InstalledHere + @"\YAV.EXE", ownWindow: true, installed: installed)));
+    }
+
+    [Fact]
+    public void A_program_in_an_installation_directory_offers_nothing_whether_installed_apps_lists_it_or_not()
+    {
+        // Installed with --no-register, or in another directory than the installation "Installed apps" knows of.
+        Assert.Equal(OfferKind.None, InstallOffer.Decide(Situation(fromInstallation: true)));
+        Assert.Equal(OfferKind.None, InstallOffer.Decide(Situation(fromInstallation: true, ownWindow: true)));
+        Assert.Equal(OfferKind.None, InstallOffer.Decide(Situation(fromInstallation: true, ownWindow: true, installed: new InstallRegistration(InstalledHere, "0.1.1"))));
     }
 
     [Fact]
@@ -248,6 +257,58 @@ public class InstallOfferTests
         Assert.Equal(0, setup.Console.LinesRead);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task An_installation_made_with_no_register_is_not_offered_to_be_installed_again_by_its_own_program(bool ownWindow)
+    {
+        using var setup = new Setup();
+        await InstallCommand.InstallAsync(Yav.Console.Cli.CommandLine.Parse(["install", "--no-register"]), setup.World(), CancellationToken.None);
+        setup.Console.Output.GetStringBuilder().Clear();
+        var pathWrites = setup.System.PathWrites;
+        setup.Program = Path.Combine(setup.Directory, "yav.exe");
+        setup.Console.Answer(string.Empty, string.Empty);
+
+        var ended = await InstallOffer.OfferAsync(setup.World(ownWindow: ownWindow), false, () => true, CancellationToken.None);
+
+        // Nothing says it is not installed, and Enter would not register it after all.
+        Assert.Null(ended);
+        Assert.Equal(string.Empty, setup.Console.Output.ToString());
+        Assert.Equal(0, setup.Console.LinesRead);
+        Assert.Null(setup.System.Registration);
+        Assert.Equal(pathWrites, setup.System.PathWrites);
+    }
+
+    [Fact]
+    public async Task The_program_of_an_installation_does_not_read_the_registry_to_find_out_that_it_is_installed()
+    {
+        using var setup = new Setup();
+        await InstallCommand.InstallAsync(Yav.Console.Cli.CommandLine.Parse(["install", "--no-register"]), setup.World(), CancellationToken.None);
+        setup.Console.Output.GetStringBuilder().Clear();
+        setup.Program = Path.Combine(setup.Directory, "yav.exe");
+
+        // Read, the registry would fail the offer at every start, and say so.
+        setup.System.ReadFails = new UnauthorizedAccessException("Access to the registry key is denied.");
+
+        var ended = await InstallOffer.OfferAsync(setup.World(), false, () => true, CancellationToken.None);
+
+        Assert.Null(ended);
+        Assert.Equal(string.Empty, setup.Console.Output.ToString());
+        Assert.Equal(string.Empty, setup.Console.Error.ToString());
+    }
+
+    [Fact]
+    public async Task A_yav_install_json_that_cannot_be_read_beside_the_program_does_not_make_it_an_installed_copy()
+    {
+        using var setup = new Setup();
+        setup.Write("download/" + Installer.ManifestName, "{ not json");
+        setup.Console.Answer("n");
+
+        await InstallOffer.OfferAsync(setup.World(), false, () => true, CancellationToken.None);
+
+        Assert.StartsWith($"YAV Shell {Fixtures.ProductVersion} is not installed", setup.Console.Output.ToString(), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task A_registration_whose_program_is_gone_counts_as_not_installed()
     {
@@ -396,5 +457,53 @@ public class InstallOfferTests
         var world = setup.World() with { ReadLine = token => Task.FromCanceled<string?>(token) };
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => InstallOffer.OfferAsync(world, false, () => true, stop.Token));
+    }
+
+    [Fact]
+    public async Task Control_c_while_the_offer_asks_installs_nothing_whatever_line_the_console_hands_over()
+    {
+        using var setup = new Setup();
+        using var stop = new CancellationTokenSource();
+
+        // The handler of the process cancels the token while the question waits; the console still returns a yes.
+        var world = setup.World() with { ReadLine = _ => { stop.Cancel(); return Task.FromResult<string?>("y"); } };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => InstallOffer.OfferAsync(world, false, () => true, stop.Token));
+
+        Assert.False(Directory.Exists(setup.Directory));
+        Assert.Equal(string.Empty, setup.Console.Error.ToString());
+    }
+
+    [Theory]
+    [InlineData(true, 5)]
+    [InlineData(false, null)]
+    public async Task Control_c_stops_an_installation_the_offer_started_between_two_files_and_what_it_wrote_is_said(bool ownWindow, int? exitCode)
+    {
+        using var setup = new Setup();
+        using var stop = new CancellationTokenSource();
+        setup.Console.Answer(string.Empty, string.Empty);
+
+        // Control+C arrives while the first file is written: the handler of the process cancels the token the offer got.
+        var world = setup.World(ownWindow: ownWindow) with
+        {
+            Files =
+            [
+                new PackageFile("docs/user-guide.md", () => { stop.Cancel(); return new MemoryStream("guide"u8.ToArray()); }),
+                new PackageFile("LICENSE.txt", () => new MemoryStream("license"u8.ToArray())),
+            ],
+        };
+
+        var ended = await InstallOffer.OfferAsync(world, false, () => true, stop.Token);
+
+        Assert.Equal(exitCode, ended);
+        Assert.Equal(
+            $"yav: The installation in {setup.Directory} was stopped before it was complete. {Path.Combine(setup.Directory, Installer.ManifestName)} names the files it may have written: "
+            + $"'yav install --dir \"{setup.Directory}\"' again completes the installation, 'yav uninstall --dir \"{setup.Directory}\"' removes it. The PATH and \"Installed apps\" were not changed.",
+            setup.Console.Error.ToString().Trim());
+        Assert.True(File.Exists(Path.Combine(setup.Directory, "docs", "user-guide.md")));
+        Assert.False(File.Exists(Path.Combine(setup.Directory, "LICENSE.txt")));
+        Assert.Null(setup.System.Registration);
+        Assert.Equal(0, setup.System.PathWrites);
+        Assert.Equal(ownWindow, setup.Console.Output.ToString().EndsWith(InstallReport.CloseWindow, StringComparison.Ordinal));
     }
 }

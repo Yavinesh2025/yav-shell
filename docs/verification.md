@@ -26,17 +26,19 @@ it did not touch.
 ## Version 0.2.0
 
 The tests and the checks of the package below were made on 2026-10-07, after the last change to the
-program: the automated tests from 19:15 to 19:25, the package built at 19:26, its check where there is
-no .NET at 19:26, its check in Windows Sandbox from 19:26 to 19:28, and the mutation check from 19:29
-to 21:43 (local time, UTC+08:00). After them only documents were changed, this one among them.
-`yav.exe` carries the documents, so a `yav.exe` built from the final source has another SHA-256 than
-the one below.
+program: the automated tests from 23:25 to 23:37, the package built at 23:43, its check where there is
+no .NET at 23:44, and its check in Windows Sandbox from 23:44 to 23:45 (local time, UTC+08:00). The
+whole list of the mutation check, 456 entries, was run on 2026-10-07 from 19:29 to 21:43, before the
+corrections made after publication, and the tests noticed all 456; after the corrections, the 17
+entries of the changed code, 17 of them new, were run again from 23:40 to 23:42, and the tests noticed
+17 of 17. After them only documents were changed, this one among them. `yav.exe` carries the documents,
+so a `yav.exe` built from the final source has another SHA-256 than the one below.
 
 | What | How | Result |
 |---|---|---|
-| The automated tests | `scripts\test.ps1` | 2612 of 2612 passed on 2026-10-07. [test-results.md](test-results.md) lists them class by class. They use a scripted stand-in for the agents |
-| That the tests can fail | `scripts\mutation-check.ps1` | 456 defects were put into the code one at a time; the tests noticed all 456. 112 of the entries are new for 0.2.0: 59 for installing (the installer, `yav install` and `yav uninstall`, the offer at start), 29 for the guided first run, 14 for review-only acceptance, 6 for the scripts that build and check the package, 2 for the state of a run, 1 for plain text where `GITHUB_ACTIONS` is set and 1 for how `yav doctor` names Windows Server. One entry of 0.1.1 was changed, and the 8 for 0.1.1's PowerShell installer went with it. The whole list was run, in slices. The run was stopped once, at about 20:30, when this machine ran low on memory; the 190 entries it had not finished were run again from the start |
-| The package: one file | `scripts\package.ps1` | `dist\yav.exe`, 95.6 MB (100,272,056 bytes), SHA-256 `4f19327b057874b1d314006e3f27df5cab1ff138988d3c18164a05f4512b11cb`. Nothing is code-signed |
+| The automated tests | `scripts\test.ps1` | 2637 of 2637 passed on 2026-10-07. [test-results.md](test-results.md) lists them class by class. They use a scripted stand-in for the agents |
+| That the tests can fail | `scripts\mutation-check.ps1` | 456 defects were put into the code one at a time; the tests noticed all 456. 112 of the entries are new for 0.2.0: 59 for installing (the installer, `yav install` and `yav uninstall`, the offer at start), 29 for the guided first run, 14 for review-only acceptance, 6 for the scripts that build and check the package, 2 for the state of a run, 1 for plain text where `GITHUB_ACTIONS` is set and 1 for how `yav doctor` names Windows Server. One entry of 0.1.1 was changed, and the 8 for 0.1.1's PowerShell installer went with it. The whole list was run, in slices, before the corrections made after publication. The run was stopped once, at about 20:30, when this machine ran low on memory; the 190 entries it had not finished were run again from the start. After the corrections, the 17 entries of the changed code, 17 of them new, were run again; the tests noticed 17 of 17 |
+| The package: one file | `scripts\package.ps1` | `dist\yav.exe`, 95.7 MB (100,313,016 bytes), SHA-256 `f2c3f05f53a28c9c1ac9e5d12566cd4dd75e4a01bea69a8612fb9c987bce2b59`. Nothing is code-signed |
 | The package where there is no .NET, no Git and no agent | `scripts\verify-package.ps1` | 29 of 29 checks, on this machine with a PATH that holds nothing but Windows. Among them: `yav install --dir`, with `--no-path` and `--no-register`, installs into a directory whose name has a blank, brackets and `ü`; what was installed is the program of the package and starts; `yav uninstall` removes what was installed and nothing else |
 | The package on a new Windows | `scripts\verify-package.ps1 -Sandbox` | 37 of 37 checks, in Windows Sandbox without network: the 29 above; that no .NET is installed there; `yav install` with its defaults, with the PATH entry and the entry under "Installed apps"; `yav` found by its name in a console opened afterwards; and `yav uninstall`, after which none of it is left |
 | The installed agents answer as YAV expects | `scripts\test.ps1 -Live` | **Not run for 0.2.0.** Codex CLI 0.160.1 and Claude Code 2.1.292 are installed now, newer than the versions YAV calls tested. [Fixture tests and live tests](#fixture-tests-and-live-tests) has what the six found for 0.1.1 |
@@ -44,7 +46,7 @@ the one below.
 | A benchmark with real models | `yav-bench run --mode live` | **Not done.** It consumes usage of your accounts and is yours to start |
 
 The checks of the package above were made with the `yav.exe` that `scripts\package.ps1` built on this
-machine, SHA-256 `4f19327b057874b1d314006e3f27df5cab1ff138988d3c18164a05f4512b11cb`. The
+machine, SHA-256 `f2c3f05f53a28c9c1ac9e5d12566cd4dd75e4a01bea69a8612fb9c987bce2b59`. The
 `yav.exe` attached to the GitHub Release is not that file: the release workflow builds it again, from
 the tag, on Windows Server 2025 (`windows-2025`), runs the automated tests and
 `scripts\verify-package.ps1` there, and gives its own SHA-256 in the release text and in the
@@ -70,10 +72,10 @@ is either. A directory that 0.1.1's `install.ps1` made is updated and removed li
 | Checked | How | Result |
 |---|---|---|
 | Installing: a new installation, one over an earlier version and over one of 0.1.1, a damaged file put right, an interrupted one completed; refused before anything is written: a directory that holds something else, a YAV that runs from there, the data directory, the root of a drive, a path of 260 characters or more, a `;` with the PATH | tests with directories of their own, whose names have blanks, brackets and letters of other alphabets (`InstallerTests`); the registry is a stand-in in them | 53 of 53 passed |
-| Removing: only what the list names; a directory that holds files of yours is kept; the entry under "Installed apps" only when it names this directory; the program that runs is left in place, with a list that names only it and the text of this removal, and deleted after it has ended by the real `cmd.exe`, which leaves a newer installation in the same directory alone | `InstallerTests`, `InstallCommandTests` | passed: the `InstallerTests` above, and 66 of 66 `InstallCommandTests` |
+| Removing: only what the list names; a directory that holds files of yours is kept; the entry under "Installed apps" only when it names this directory; the program that runs is left in place, with a list that names only it and the text of this removal, and deleted after it has ended by the real `cmd.exe`, which leaves a newer installation in the same directory alone | `InstallerTests`, `InstallCommandTests` | passed: the `InstallerTests` above, and 74 of 74 `InstallCommandTests` |
 | The text of the PATH: the directory added at the end and only once, removed without touching anything else; `%VARIABLES%`, empty parts and the kind of the value kept | `PathListTests`, with every case of the tests of 0.1.1's PowerShell installer | 18 of 18 passed |
 | `yav install` and `yav uninstall`: what they say, their exit codes, `--remove-data` (what it takes for a data directory of YAV, and what it refuses before it asks), a build of the source tree that cannot install itself and removes only an installation named with `--dir`, a `--dir` without a value | `InstallCommandTests`, `CommandLineTests` | passed: the `InstallCommandTests` above, and 51 of 51 `CommandLineTests` |
-| The offer at start: when it is made, what a "no" does, a "no" that cannot be saved, a failure in it, a console that Windows made for `yav` alone, a window that was started hidden | `InstallOfferTests` | 51 of 51 passed |
+| The offer at start: when it is made, what a "no" does, a "no" that cannot be saved, a failure in it, a console that Windows made for `yav` alone, a window that was started hidden | `InstallOfferTests` | 59 of 59 passed |
 | The real program, installed and removed where there is no .NET | `scripts\verify-package.ps1` | passed, on this machine and in Windows Sandbox: `yav install --dir` with `--no-path` and `--no-register`, into a directory whose name has a blank, brackets and `ü`; the installed program is that of the package and starts; the license, the notices, the license texts, the documentation and the examples are beside it (28 files), and its list names all 29; PATH and "Installed apps" are left alone; a directory that holds something else is refused; `yav uninstall` removes what was installed, keeps a file of yours and with it the directory, and keeps your data |
 | The PATH and "Installed apps" of a real user account | `scripts\verify-package.ps1 -Sandbox`, in the user account of Windows Sandbox. YAV was not installed in the account of this machine | passed: `yav install` into `%LOCALAPPDATA%\Programs\YavShell`, on the PATH of the user once, under "Installed apps" with `"...\YavShell\yav.exe" uninstall`; `yav` found by its name in a console opened afterwards; after `yav uninstall` the directory, the program that removed itself included, the PATH entry and the entry under "Installed apps" are gone |
 
@@ -211,19 +213,19 @@ console.
 
 | Layer | Tests, 0.1.1 | Tests, 0.2.0 | What is real in it |
 |---|---:|---:|---|
-| Core: acceptance gate, profiles, review parser, cleaning of terminal output, usage, timing | 233 | 234 | the code; no process, no file |
+| Core: acceptance gate, profiles, review parser, cleaning of terminal output, usage, timing | 233 | 239 | the code; no process, no file |
 | Platform: processes, job objects, command lines, credentials, programs from the Store | 75 | 75 | Windows itself: child processes are started and ended, the Credential Manager is written under names of the tests' own |
 | Storage | 32 | 34 | SQLite files, migrations |
 | Validation: `yav.project.json`, trust, required checks | 57 | 57 | the checks are processes that run |
 | Workspace: isolation, baseline, candidate, apply, undo, merge | 148 | 148 | Git repositories, worktrees and files in temporary directories |
 | Adapters | 317 | 317 | the adapters, talking to the stand-in over pipes |
-| Coordinator: a run from preparation to a candidate, repair, recovery; since 0.2.0 review-only acceptance | 308 | 322 | everything below the console |
+| Coordinator: a run from preparation to a candidate, repair, recovery; since 0.2.0 review-only acceptance | 308 | 324 | everything below the console |
 | Console: parsing, rendering, the line editor, questions of agents, JSON, every command of the shell; since 0.2.0 the guided first run | 796 | 866 | the shell runs against a terminal that is kept in memory |
-| Installation, new in 0.2.0: the installer, `yav install` and `yav uninstall`, the offer at start | - | 204 | directories and files in temporary directories; the registry is a stand-in. Real are the processes of Windows, which are asked which of them runs a program file, also by a short name or through a junction, and `cmd.exe` with `PING` and `FINDSTR`, running the command line that deletes the program after it has ended |
+| Installation, new in 0.2.0: the installer, `yav install` and `yav uninstall`, the offer at start | - | 220 | directories and files in temporary directories; the registry is a stand-in. Real are the processes of Windows, which are asked which of them runs a program file, also by a short name or through a junction, and `cmd.exe` with `PING` and `FINDSTR`, running the command line that deletes the program after it has ended |
 | The program itself, started with pipes | 23 | 24 | `yav.exe` as a process: `yav run`, `yav doctor`, input from a pipe, exit codes |
 | The program itself, in a console | 48 | 48 | `yav.exe` in the pseudo console of Windows: keys go in, the screen is read; among them the driver of `scripts\live-run.ps1` |
 | Scripts: the build scripts, `scripts\live-run.ps1`, version numbers; the examples | 213 | 221 | `live-run.ps1` runs against stand-ins for the agents; the examples are run through the program. In 0.1.1 Windows PowerShell 5.1 also ran the installer scripts, which are not part of 0.2.0 |
-| Benchmark tool | 60 | 60 | the tasks' checks run with Python and Node.js |
+| Benchmark tool | 60 | 62 | the tasks' checks run with Python and Node.js |
 | The tests' own tools: temporary directories | 2 | 2 | junctions in the file system |
 
 **Live tests** talk to the agents that are installed. There are six, they run only with
@@ -426,7 +428,7 @@ resized. The same holds for the window of the old console host (`conhost`).
 
 | | |
 |---|---|
-| The package | one file, `dist\yav.exe`, with its SHA-256 in `dist\yav.exe.sha256`. It is self-contained: the program, .NET, the native library of SQLite, and the files it puts next to itself when it installs itself (the license, the notices, the documentation, the examples) are all in it. 95.6 MB (100,272,056 bytes), built on 2026-10-07 at 19:26 and checked the same day, on this machine and in Windows Sandbox |
+| The package | one file, `dist\yav.exe`, with its SHA-256 in `dist\yav.exe.sha256`. It is self-contained: the program, .NET, the native library of SQLite, and the files it puts next to itself when it installs itself (the license, the notices, the documentation, the examples) are all in it. 95.7 MB (100,313,016 bytes), built on 2026-10-07 at 23:43 and checked the same day, on this machine and in Windows Sandbox |
 | .NET | .NET 10.0.12, in the file. On a Windows without any .NET, in Windows Sandbox, `yav doctor` names it as the runtime that runs YAV: ".NET 10.0.12 in C:\yav-check (part of this installation)", where `C:\yav-check` is the directory `yav.exe` was started from there |
 | `yav install`, `yav uninstall` and the offer at start | **part of the program, run and tested**: see [Installing](#installing-one-yavexe-that-installs-itself). No administrator rights are needed, and none are asked for |
 | A Start menu entry | **none is made**, and one that 0.1.1 made is left as it is. YAV Shell is started by typing `yav` in a console; [decisions.md](decisions.md) says why |

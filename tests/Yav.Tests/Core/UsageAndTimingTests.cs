@@ -231,6 +231,75 @@ public class TimingTests
         Assert.Equal(TimeSpan.FromSeconds(12), span.Duration);
         Assert.Equal(SpanKind.Tests, span.Kind);
     }
+
+    [Fact]
+    public void A_span_given_when_it_began_and_ended_lasts_from_one_to_the_other_however_late_it_is_taken_up()
+    {
+        var clock = new ManualClock();
+        var recorder = new TimingRecorder(clock, "run-1");
+        var reported = clock.GetUtcNow();
+
+        // Both reports are taken up 1.5 s after the first of them, one right after the other.
+        clock.Advance(TimeSpan.FromMilliseconds(1_500));
+        recorder.Start(SpanKind.ToolActivity, "Model A: command", startedAt: reported).End(reported + TimeSpan.FromMilliseconds(1_200));
+
+        var span = Assert.Single(recorder.Completed);
+        Assert.Equal(reported, span.StartedAt);
+        Assert.Equal(TimeSpan.FromMilliseconds(1_200), span.Duration);
+    }
+
+    [Fact]
+    public void A_span_given_when_it_began_and_ended_without_a_time_lasts_until_then()
+    {
+        var clock = new ManualClock();
+        var recorder = new TimingRecorder(clock, "run-1");
+        var reported = clock.GetUtcNow();
+        clock.Advance(TimeSpan.FromMilliseconds(500));
+
+        using (recorder.Start(SpanKind.ToolActivity, "Model A: command", startedAt: reported))
+        {
+            clock.Advance(TimeSpan.FromMilliseconds(700));
+        }
+
+        var span = Assert.Single(recorder.Completed);
+        Assert.Equal(reported, span.StartedAt);
+        Assert.Equal(TimeSpan.FromMilliseconds(1_200), span.Duration);
+    }
+
+    [Fact]
+    public void A_span_does_not_begin_at_a_time_still_to_come()
+    {
+        var clock = new ManualClock();
+        var recorder = new TimingRecorder(clock, "run-1");
+        var now = clock.GetUtcNow();
+
+        using (recorder.Start(SpanKind.ToolActivity, "Model A: command", startedAt: now + TimeSpan.FromHours(1)))
+        {
+            clock.Advance(TimeSpan.FromMilliseconds(300));
+        }
+
+        var span = Assert.Single(recorder.Completed);
+        Assert.Equal(now, span.StartedAt);
+        Assert.Equal(TimeSpan.FromMilliseconds(300), span.Duration);
+    }
+
+    [Theory]
+    // Before the span began, as the report of another clock can be: the span would be negative.
+    [InlineData(-1_000)]
+    // After now: the span would end where nothing has been measured yet.
+    [InlineData(5_000)]
+    public void A_span_does_not_end_at_a_time_it_cannot_have_ended_at(int milliseconds)
+    {
+        var clock = new ManualClock();
+        var recorder = new TimingRecorder(clock, "run-1");
+        var began = clock.GetUtcNow();
+        var span = recorder.Start(SpanKind.ToolActivity, "Model A: command");
+        clock.Advance(TimeSpan.FromMilliseconds(400));
+
+        span.End(began + TimeSpan.FromMilliseconds(milliseconds));
+
+        Assert.Equal(TimeSpan.FromMilliseconds(400), Assert.Single(recorder.Completed).Duration);
+    }
 }
 
 public class RunStateMachineTests

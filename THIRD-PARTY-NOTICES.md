@@ -20,7 +20,7 @@ installation folder. Each file names the component it belongs to and where its t
 | Spectre.Console, Spectre.Console.Ansi | 0.57.2 | MIT | `licenses/Spectre.Console.txt` | https://github.com/spectreconsole/spectre.console |
 | Microsoft.Data.Sqlite, Microsoft.Data.Sqlite.Core | 10.0.12 | MIT | `licenses/Microsoft.Data.Sqlite.txt` | https://github.com/dotnet/efcore |
 | SQLitePCLRaw (core, provider, bundle, lib) | 2.1.12 | Apache-2.0 | `licenses/SQLitePCLRaw.txt`, `licenses/SQLitePCLRaw-NOTICE.txt` | https://github.com/ericsink/SQLitePCL.raw |
-| SQLite (native library `e_sqlite3.dll`) | as bundled by SQLitePCLRaw 2.1.12 | Public domain | `licenses/SQLite.txt` | https://www.sqlite.org |
+| SQLite (native library `e_sqlite3.dll`) | 3.53.3, as built by SQLitePCLRaw.lib.e_sqlite3 2.1.12 | Public domain | `licenses/SQLite.txt` | https://www.sqlite.org |
 
 Where a package contains a license file, that file is the text (the .NET runtime pack and
 Microsoft.Extensions.DependencyInjection.Abstractions). The other packages declare their license only as an

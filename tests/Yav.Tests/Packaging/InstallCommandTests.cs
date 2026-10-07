@@ -529,6 +529,124 @@ public class InstallCommandTests
     }
 
     [Fact]
+    public async Task Removing_the_data_without_an_installation_asks_nothing_removes_nothing_and_says_how_the_data_is_removed()
+    {
+        using var setup = new Setup();
+        setup.Credentials.Write(AppServices.AnthropicKeyName, "sk-test", "test");
+        setup.Console.Answer("yes");
+
+        // As for the real process, no directory is named: nothing is registered, and no yav-install.json lies beside the program.
+        var code = await InstallCommand.UninstallAsync(Uninstall("--remove-data"), setup.World(named: false), CancellationToken.None);
+
+        Assert.Equal(5, code);
+        Assert.Equal(0, setup.Console.LinesRead);
+        Assert.Equal(string.Empty, setup.Console.Output.ToString());
+        Assert.Equal(
+            $"yav: YAV Shell is not installed for this user account, so nothing was removed. Your data is in {setup.Data.Home}; to remove it, delete that folder, "
+            + "and the API key YAV stored in the Windows Credential Manager (its name begins with YavShell/).",
+            setup.Console.Error.ToString().Trim());
+        Assert.True(File.Exists(setup.Data.Database));
+        Assert.True(setup.Credentials.Exists(AppServices.AnthropicKeyName));
+    }
+
+    [Theory]
+    [InlineData(true, false, "Your data is in <home>; to remove it, delete that folder.")]
+    [InlineData(false, true, "<home> does not exist; to remove the API key YAV stored for it, delete it in the Windows Credential Manager (its name begins with YavShell/).")]
+    [InlineData(false, false, "There is no data of YAV to remove either: <home> does not exist, and no API key is stored for it.")]
+    public async Task Without_an_installation_removing_the_data_names_only_what_is_there(bool hasData, bool keyStored, string said)
+    {
+        using var setup = new Setup();
+        if (!hasData)
+        {
+            Directory.Delete(setup.Data.Home, recursive: true);
+        }
+
+        if (keyStored)
+        {
+            setup.Credentials.Write(AppServices.AnthropicKeyName, "sk-test", "test");
+        }
+
+        setup.Console.Answer("yes");
+
+        var code = await InstallCommand.UninstallAsync(Uninstall("--remove-data"), setup.World(named: false), CancellationToken.None);
+
+        Assert.Equal(5, code);
+        Assert.Equal(0, setup.Console.LinesRead);
+        Assert.Equal(
+            "yav: YAV Shell is not installed for this user account, so nothing was removed. " + said.Replace("<home>", setup.Data.Home, StringComparison.Ordinal),
+            setup.Console.Error.ToString().Trim());
+        Assert.Equal(keyStored, setup.Credentials.Exists(AppServices.AnthropicKeyName));
+    }
+
+    [Fact]
+    public async Task Removing_the_data_from_a_directory_that_holds_no_installation_is_refused_before_anything_is_asked()
+    {
+        using var setup = new Setup();
+        setup.Write("Programs/YAV Shell/yav.exe", "something of the user");
+        setup.Console.Answer("yes");
+
+        var code = await InstallCommand.UninstallAsync(Uninstall("--remove-data"), setup.World(), CancellationToken.None);
+
+        Assert.Equal(5, code);
+        Assert.Equal(0, setup.Console.LinesRead);
+        Assert.Contains("does not hold an installation of YAV Shell", setup.Console.Error.ToString(), StringComparison.Ordinal);
+        Assert.True(File.Exists(setup.Data.Database));
+        Assert.Equal("something of the user", File.ReadAllText(Path.Combine(setup.Directory, "yav.exe")));
+    }
+
+    [Fact]
+    public async Task Removing_the_data_beside_a_yav_install_json_that_cannot_be_read_is_refused_before_anything_is_asked()
+    {
+        using var setup = new Setup();
+        setup.Write("download/" + Installer.ManifestName, "{ not json");
+        setup.Console.Answer("yes");
+
+        var code = await InstallCommand.UninstallAsync(Uninstall("--remove-data"), setup.World(named: false), CancellationToken.None);
+
+        Assert.Equal(5, code);
+        Assert.Equal(0, setup.Console.LinesRead);
+        Assert.Equal(
+            $"yav: {LongPath.Of(Path.GetDirectoryName(setup.Program)!)} does not hold an installation of YAV Shell ({Installer.ManifestName} is missing or cannot be read). Nothing was removed.",
+            setup.Console.Error.ToString().Trim());
+        Assert.True(File.Exists(setup.Data.Database));
+        Assert.True(File.Exists(setup.Program));
+    }
+
+    [Fact]
+    public async Task A_registry_that_cannot_be_read_ends_the_removal_of_the_data_before_anything_is_asked()
+    {
+        using var setup = new Setup();
+        setup.Credentials.Write(AppServices.AnthropicKeyName, "sk-test", "test");
+        setup.System.ReadFails = new IOException("registry unreadable");
+        setup.Console.Answer("yes");
+
+        var code = await InstallCommand.UninstallAsync(Uninstall("--remove-data"), setup.World(named: false), CancellationToken.None);
+
+        Assert.Equal(5, code);
+        Assert.Equal(0, setup.Console.LinesRead);
+        Assert.Equal(string.Empty, setup.Console.Output.ToString());
+        Assert.Equal("yav: the removal could not be completed: registry unreadable", setup.Console.Error.ToString().Trim());
+        Assert.True(File.Exists(setup.Data.Database));
+        Assert.True(setup.Credentials.Exists(AppServices.AnthropicKeyName));
+    }
+
+    [Fact]
+    public async Task An_installation_without_an_entry_under_installed_apps_is_found_by_its_own_program_before_the_data_is_asked_about()
+    {
+        using var setup = new Setup();
+        await InstallCommand.InstallAsync(Install("--no-register"), setup.World(), CancellationToken.None);
+        setup.Program = Path.Combine(setup.Directory, "yav.exe");
+        setup.Console.Answer("yes");
+
+        var code = await InstallCommand.UninstallAsync(Uninstall("--remove-data"), setup.World(named: false), CancellationToken.None);
+
+        Assert.Equal(0, code);
+        Assert.Equal(1, setup.Console.LinesRead);
+        Assert.False(Directory.Exists(setup.Data.Home));
+        Assert.Single(setup.DeletedAfterExit);
+    }
+
+    [Fact]
     public async Task Removing_the_data_takes_the_data_directory_and_the_stored_key_after_yes()
     {
         using var setup = new Setup();

@@ -174,7 +174,9 @@ jobs:
           "dotnet: $((Get-Command dotnet).Source)"
           dotnet --version
           dotnet --list-runtimes
+          # The tests run the checks of the benchmark tasks, with python or with node.
           if (Get-Command python -ErrorAction SilentlyContinue) { python --version }
+          if (Get-Command node -ErrorAction SilentlyContinue) { "Node.js: $(node --version)" }
           exit 0
 
       # scripts\package.ps1 runs the automated tests first (Release; fixtures only, no test asks a model), then
@@ -207,10 +209,29 @@ jobs:
 
             [xml]$xml = Get-Content -LiteralPath $trx -Raw
             $counters = $xml.TestRun.ResultSummary.Counters
-            $notRun = [int]$counters.total - [int]$counters.executed
-            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "tests=$($counters.passed) of $($counters.total) passed, $($counters.failed) failed, $notRun not run"
-
             $results = @($xml.TestRun.Results.UnitTestResult)
+            $notRun = [int]$counters.total - [int]$counters.executed
+
+            # The text of the release says why tests were not run, from the reasons they were skipped with: the first
+            # line of each. GitHub's runner has no PowerShell 7 from the Microsoft Store, so the tests that need it
+            # are not run there. Any other reason is given as the tests give it.
+            $why = ''
+            if ($notRun -gt 0) {
+              $reasons = @(foreach ($result in ($results | Where-Object { $_.outcome -notin 'Passed', 'Failed' })) {
+                $message = @(([string]$result.Output.ErrorInfo.Message) -split "`r?`n" | Where-Object { $_.Trim() })
+                if ($message.Count -gt 0) { $message[0].Trim().TrimEnd('.') } else { '' }
+              })
+              $others = @($reasons | Where-Object { $_ -notmatch 'PowerShell 7 from the Microsoft Store' })
+              $given = @($reasons | Where-Object { $_ } | Sort-Object -Unique)
+              if ($reasons.Count -eq $notRun -and $others.Count -eq 0) {
+                $why = " (on GitHub's runner, the tests that need PowerShell 7 from the Microsoft Store do not run)"
+              }
+              elseif ($given.Count -gt 0) {
+                $why = " (the reasons they were not run: $($given -join '; '))"
+              }
+            }
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "tests=$($counters.passed) of $($counters.total) passed, $($counters.failed) failed, $notRun not run$why"
+
             foreach ($kind in @(@{ Outcome = 'Failed'; Title = 'Failed' }, @{ Outcome = 'NotExecuted'; Title = 'Not run' })) {
               $listed = @($results | Where-Object { $_.outcome -eq $kind.Outcome })
               if ($listed.Count -eq 0) { continue }

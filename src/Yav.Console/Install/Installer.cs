@@ -142,6 +142,22 @@ public sealed class Installer
     public bool IsInstalledProgram(string program) =>
         Current() is { } current && LongPath.Same(program, Path.Combine(current.InstallLocation, ExecutableName));
 
+    /// <summary>
+    /// True when the folder of <paramref name="program"/> holds a readable yav-install.json of YAV Shell: the program is
+    /// an installed copy, whether "Installed apps" lists it or not (an installation made with --no-register).
+    /// </summary>
+    public static bool RunsFromInstallation(string program) =>
+        Path.GetDirectoryName(Path.GetFullPath(program)) is { } folder && ReadManifest(Path.Combine(folder, ManifestName)).Manifest is not null;
+
+    /// <summary>
+    /// The directory of the installation a removal takes, found as <see cref="Uninstall"/> finds it, and nothing is
+    /// changed: the one named, otherwise the one "Installed apps" names, otherwise the folder of <paramref name="program"/>
+    /// when it holds yav-install.json. Null when none is named or known: YAV Shell is not installed for this user account.
+    /// </summary>
+    /// <exception cref="InstallException">That directory holds no installation of YAV Shell that can be read.</exception>
+    public string? InstallationToRemove(string? directory, string program) =>
+        Installation(directory, _system.ReadRegistration(), program)?.Root;
+
     public async Task<InstallOutcome> InstallAsync(string program, IReadOnlyList<PackageFile> files, InstallOptions options, CancellationToken cancellationToken)
     {
         // Everything is checked before the first change: a refusal leaves the machine as it was.
@@ -318,24 +334,9 @@ public sealed class Installer
     public UninstallOutcome Uninstall(string? directory, string program)
     {
         var registration = _system.ReadRegistration();
-        var chosen = directory ?? registration?.InstallLocation;
-        if (chosen is null && Path.GetDirectoryName(Path.GetFullPath(program)) is { } beside && File.Exists(Path.Combine(beside, ManifestName)))
-        {
-            // Installed without an entry under "Installed apps": the program knows where it is itself.
-            chosen = beside;
-        }
-
-        if (chosen is null)
-        {
-            throw new InstallException("YAV Shell is not installed for this user account, so nothing was removed. Name an installation with --dir.");
-        }
-
-        var root = LongPath.Of(chosen);
+        var (root, manifest) = Installation(directory, registration, program)
+            ?? throw new InstallException("YAV Shell is not installed for this user account, so nothing was removed. Name an installation with --dir.");
         var manifestPath = Path.Combine(root, ManifestName);
-        if (ReadInstallation(root).Manifest is not { } manifest)
-        {
-            throw new InstallException($"{root} does not hold an installation of YAV Shell ({ManifestName} is missing or cannot be read). Nothing was removed.");
-        }
 
         RefuseWhileRunning(Path.Combine(root, ExecutableName), "removed");
 
@@ -427,6 +428,31 @@ public sealed class Installer
         }
 
         return new UninstallOutcome(root, removed, pathChange, unregistered, left) { OtherFilesKept = others, Removal = removal };
+    }
+
+    /// <summary>The installation a removal takes, and what its manifest says. Null when none is named or known.</summary>
+    /// <exception cref="InstallException">The directory holds no installation of YAV Shell that can be read.</exception>
+    private (string Root, InstallManifest Manifest)? Installation(string? directory, InstallRegistration? registration, string program)
+    {
+        var chosen = directory ?? registration?.InstallLocation;
+        if (chosen is null && Path.GetDirectoryName(Path.GetFullPath(program)) is { } beside && File.Exists(Path.Combine(beside, ManifestName)))
+        {
+            // Installed without an entry under "Installed apps": the program knows where it is itself.
+            chosen = beside;
+        }
+
+        if (chosen is null)
+        {
+            return null;
+        }
+
+        var root = LongPath.Of(chosen);
+        if (ReadInstallation(root).Manifest is not { } manifest)
+        {
+            throw new InstallException($"{root} does not hold an installation of YAV Shell ({ManifestName} is missing or cannot be read). Nothing was removed.");
+        }
+
+        return (root, manifest);
     }
 
     private void RefuseWhileRunning(string executable, string what)

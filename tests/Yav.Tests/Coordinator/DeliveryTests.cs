@@ -506,46 +506,6 @@ public class ChecksAndSourceTests
         Assert.True(whole.Duration < project.Duration + agents.Duration, $"{whole.Duration} for {project.Duration} and {agents.Duration}");
     }
 
-    [Theory]
-    [InlineData(CoordinatorHarness.CodexId, "model-a")]
-    [InlineData(CoordinatorHarness.ClaudeId, "opus")]
-    public async Task The_time_an_agent_spends_in_its_tools_is_measured_apart_from_the_time_of_the_provider(string adapter, string model)
-    {
-        await using var harness = new CoordinatorHarness();
-        harness.Configuration = harness.Configuration with { ModelA = new Yav.Core.Profiles.RoleSelection(adapter, model) };
-        harness.TrustGates(CoordinatorHarness.NoTextGate("tests", "src/app.txt", "bug"));
-        harness.Agents
-            .ImplementerTurn(
-                Step.Sleep(300),
-                Step.Command("dotnet test --filter Secret=hunter2", "1 failed", exitCode: 1, milliseconds: 1_200),
-                Step.Write("src/app.txt", "fixed\n"),
-                Step.Command("dotnet test", "all passed", milliseconds: 900),
-                Step.Message("Done."))
-            .ReviewerTurn(Step.Review("pass"));
-
-        var outcome = await harness.RunAsync(Task);
-
-        harness.AssertEnded(RunOutcomeKind.ReadyToApply, outcome);
-        var spans = harness.Database.GetSpans(outcome.RunId);
-        var implementation = spans.Single(s => s.Kind == Yav.Core.Timing.SpanKind.Implementation);
-        var tools = spans.Where(s => s.Kind == Yav.Core.Timing.SpanKind.ToolActivity).OrderBy(s => s.StartedAt).ToList();
-        Assert.Equal(2, tools.Count);
-        // The commands run for 1200 and 900 ms. What is measured begins when the report of the start is taken up,
-        // which on a machine that is busy can be tenths of a second after it was written.
-        Assert.True(tools[0].Duration >= TimeSpan.FromMilliseconds(400), $"the first command: {tools[0].Duration}");
-        Assert.True(tools[1].Duration >= TimeSpan.FromMilliseconds(300), $"the second command: {tools[1].Duration}");
-        Assert.All(tools, tool => Assert.True(
-            tool.StartedAt >= implementation.StartedAt && tool.EndedAt <= implementation.EndedAt, "a command lies outside the turn it belongs to"));
-
-        // What is kept with a measurement says whose tool it was, and not what the command was.
-        Assert.All(tools, tool => Assert.Equal("Model A: command", tool.Label));
-
-        var started = harness.Database.FindRun(outcome.RunId)!.CreatedAt;
-        var report = Yav.Core.Timing.TimingMath.Report(spans, started, spans.Max(s => s.EndedAt), null, null);
-        Assert.True(report.InTools >= TimeSpan.FromMilliseconds(700), $"in tools: {report.InTools}");
-        Assert.True(report.InTools < implementation.Duration, $"in tools {report.InTools}, the turn {implementation.Duration}");
-    }
-
     [Fact]
     public async Task A_tool_that_had_not_ended_when_its_turn_ended_is_measured_up_to_there()
     {

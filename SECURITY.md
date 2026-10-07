@@ -71,5 +71,13 @@ check it in two ways.
    the tag `v<version>` on a GitHub-hosted runner. It fails for a file that was changed afterwards, or that
    was signed by another workflow, from another ref or on a self-hosted runner.
 
-Windows SmartScreen may warn when a downloaded `yav.exe` is started for the first time. On a PC where
-Smart App Control is on, Windows does not start an unsigned program at all, whichever way it is started.
+Releases of this repository are immutable, so the files of a published release cannot be replaced
+afterwards. `gh release verify v<version> -R Yavinesh2025/yav-shell` checks the attestation GitHub made
+of the release (its tag, its commit and its files), in addition to the attestation of the build above.
+It checks the release on GitHub, not the file you downloaded;
+`gh release verify-asset v<version> yav.exe -R Yavinesh2025/yav-shell` checks that file against it.
+
+Windows SmartScreen may stop a downloaded `yav.exe` the first time it is started, with "Windows protected
+your PC": once both checks have passed, choose **More info**, then **Run anyway**. On a PC where Smart App
+Control is on, Windows does not start an unsigned program at all, whichever way it is started, and offers
+no "Run anyway": `yav.exe` cannot be used there.

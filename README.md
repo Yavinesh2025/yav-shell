@@ -19,12 +19,19 @@ YAV C:\Projects\MyApp> Fix the login bug and add regression tests.
 
 ## Start
 
+You need Windows 11 x64, on which YAV Shell was tested (Windows 10 and Windows on ARM were not tried),
+and at least one of the agent programs it drives, Codex CLI or Claude Code, installed and signed in, as
+described below the steps.
+
 1. **Get `yav.exe`.** It is one file. Download it, with `yav.exe.sha256`, from the
    [latest release](https://github.com/Yavinesh2025/yav-shell/releases/latest) and check it as
-   [SECURITY.md](SECURITY.md#checking-a-download) says; or build it yourself: `scripts\package.ps1` makes
-   `dist\yav.exe` (see [Build and test](#build-and-test)).
-2. **Run it.** Double-click it, or start it in a console without arguments. It offers to install itself
-   for your user account, without administrator rights; `yav install` installs it without asking.
+   [SECURITY.md](SECURITY.md#checking-a-download) says. (To check that a published `yav.exe` matches the
+   source, you may build it yourself: see [Build and test](#build-and-test).)
+2. **Run it.** Double-click it, or start it in a console without arguments. `yav.exe` is not
+   code-signed: if Windows SmartScreen says "Windows protected your PC", choose **More info**, then
+   **Run anyway** (where Smart App Control is on, Windows does not start it at all). It offers to
+   install itself for your user account, without administrator rights; `yav install` installs it
+   without asking.
 3. **Open a new PowerShell window in the folder of a project and type `yav`.**
 4. **Type what you want done**, as in the example above. Text without a slash is a request; `/help`
    lists the commands.
@@ -42,7 +49,7 @@ to. Install at least one of them, the way its vendor recommends, and sign in wit
 
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"   # Codex CLI, then: codex login
-irm https://claude.ai/install.ps1 | iex                                                   # Claude Code, then: claude
+irm https://claude.ai/install.ps1 | iex                                                   # Claude Code, then: claude auth login (or start claude and sign in)
 ```
 
 Both come from the vendors' documentation ([Codex CLI](https://learn.chatgpt.com/docs/codex/cli),
@@ -50,15 +57,17 @@ Both come from the vendors' documentation ([Codex CLI](https://learn.chatgpt.com
 shows what YAV needs and what it found. Priorities, in this order: correctness and security, then
 elapsed time, then usage.
 
-**Version 0.2.0. Not code-signed: Windows SmartScreen may warn when a downloaded `yav.exe` is started
-for the first time, and on a PC where Smart App Control is on, Windows does not start it at all. The
-Codex app-server interface it uses is labelled experimental by OpenAI.**
+**Version 0.2.0. Not code-signed: Windows SmartScreen may stop a downloaded `yav.exe` the first time it
+is started (step 2 says how to go on), and on a PC where Smart App Control is on, Windows does not
+start it at all. The Codex app-server interface it uses is labelled experimental by OpenAI.**
 YAV was tested with scripted agents. With real models it has made **two** runs of one small task, with
 versions 0.1.0 and 0.1.1; version 0.2.0, which changes how YAV is installed and how the first request
 is set up, has made none. Its installation by `yav.exe` was verified with the automated tests
-(2612 of 2612 passed, on 2026-10-07) and the checks of the package (29 of 29 where there is no .NET,
-no Git and no agent, and 37 of 37 on a new Windows, in Windows Sandbox); its guided first request only
-with the automated tests, against a scripted stand-in for the agents.
+(2637 of 2637 passed, on 2026-10-07) and the checks of the package, made with a `yav.exe` built on the
+development PC (29 of 29 where there is no .NET, no Git and no agent, and 37 of 37 on a new Windows, in
+Windows Sandbox); its guided first request only with the automated tests, against a scripted stand-in
+for the agents. The `yav.exe` of a release is built again by the release workflow, whose release text
+says what was run on it (not Windows Sandbox).
 Read [what was verified and what was not](docs/verification.md) before relying on it.
 
 ## Installed, and removed
@@ -70,13 +79,16 @@ account, so that `yav` works in every console opened from then on; and lists YAV
 know the new PATH yet: open a new one, or do what the installation says for that console.
 
 `yav.exe` brings the .NET runtime along, so nothing else has to be installed for it. It also runs
-without being installed, from wherever it is.
+without being installed, from wherever it is. A copy installed with `yav install --no-register`, or any
+`yav.exe` that runs from a directory holding a `yav-install.json` of YAV Shell, is not offered
+installation.
 
 `yav uninstall`, or "Installed apps" in the settings of Windows, removes the program, its PATH entry and
 its entry under "Installed apps", and leaves anything else in its directory where it is. Your data in
 `%LOCALAPPDATA%\YavShell` (settings, history, isolated workspaces) stays, unless you add `--remove-data`
 and type `yes`; even then it is removed only when it holds nothing that YAV did not create
-([user guide](docs/user-guide.md#install)).
+([user guide](docs/user-guide.md#install)). When YAV Shell is not installed, `yav uninstall --remove-data`
+asks nothing and removes nothing; it says so, and that the data folder can be deleted by hand.
 
 | | |
 |---|---|
@@ -89,6 +101,7 @@ and type `yes`; even then it is removed only when it holds nothing that YAV did 
 | [Performance](docs/performance.md) | measured: start, prompt, commands, what YAV adds to a run |
 | [Benchmarks](bench/README.md) | the benchmark tasks, how to run them, and the results with scripted agents |
 | [Examples](examples/README.md) | `yav.project.json` for three kinds of projects, a request in a file, JSON output of a run |
+| [Specification](Build%20YAV%20Shell%20%E2%80%94%20Maximum-Quality%2C.txt) | the specification YAV Shell was built to; each release carries it as `YAV-Shell-Specification.txt` |
 
 ## Build and test
 
@@ -167,5 +180,7 @@ One program, built from modules that know each other only through the contracts 
 Copyright (c) 2026 Yavinesh Rajagopal. YAV Shell is proprietary software that is **free to use**: anyone
 may download and use `yav.exe`, personally or at work, free of charge. The source code is published to be
 read and reviewed; copying, modifying or redistributing it needs the copyright holder's written permission.
+Viewing and forking this repository on GitHub, as GitHub's Terms of Service permit for public repositories,
+is permitted; a fork grants no rights beyond those the license states.
 The terms are in [LICENSE.txt](LICENSE.txt). Components by others that are distributed with YAV Shell remain under their own licenses:
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

@@ -37,11 +37,13 @@ foreach ($test in $xml.TestRun.TestDefinitions.UnitTest) { $classOf[$test.id] = 
 $classes = @{}
 foreach ($result in $xml.TestRun.Results.UnitTestResult) {
     $name = $classOf[$result.testId]
-    if (-not $classes.ContainsKey($name)) { $classes[$name] = [pscustomobject]@{ Name = $name; Passed = 0; Failed = 0; Other = 0 } }
+    if (-not $classes.ContainsKey($name)) { $classes[$name] = [pscustomobject]@{ Name = $name; Passed = 0; Failed = 0; NotRun = 0 } }
+    # A test that neither passed nor failed, such as a skipped one, was not run. The run counts the tests that
+    # passed or failed as executed, so the classes add up to the line 'Not run' as well.
     switch ($result.outcome) {
         'Passed' { $classes[$name].Passed++ }
         'Failed' { $classes[$name].Failed++ }
-        default { $classes[$name].Other++ }
+        default { $classes[$name].NotRun++ }
     }
 }
 
@@ -60,11 +62,11 @@ $lines.Add("| Failed | $($counters.failed) |")
 $lines.Add("| Not run | $([int]$counters.total - [int]$counters.executed) |")
 $lines.Add("| Time | $([math]::Round(($finished - $started).TotalMinutes, 1)) minutes |")
 $lines.Add('')
-$lines.Add('| Class | Passed | Failed |')
-$lines.Add('|---|---:|---:|')
+$lines.Add('| Class | Passed | Failed | Not run |')
+$lines.Add('|---|---:|---:|---:|')
 foreach ($class in ($classes.Values | Sort-Object Name)) {
     $short = $class.Name -replace '^Yav\.Tests\.', ''
-    $lines.Add("| $short | $($class.Passed) | $($class.Failed + $class.Other) |")
+    $lines.Add("| $short | $($class.Passed) | $($class.Failed) | $($class.NotRun) |")
 }
 
 $target = if ($Output) { $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Output) } else { Join-Path $repo 'docs\test-results.md' }

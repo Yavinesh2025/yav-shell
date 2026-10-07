@@ -75,6 +75,9 @@ internal sealed class TurnDriver
 
         public bool ApprovalRequired { get; set; }
 
+        /// <summary>When the turn began, by the clock the run is measured with.</summary>
+        public DateTimeOffset Began { get; init; }
+
         /// <summary>The tools of the agent that are running, by the item they were reported with.</summary>
         public Dictionary<string, TimingRecorder.SpanScope> Tools { get; } = new(StringComparer.Ordinal);
     }
@@ -83,7 +86,7 @@ internal sealed class TurnDriver
     {
         var session = slot.Session;
         var role = slot.Role.Role;
-        var state = new TurnState();
+        var state = new TurnState { Began = context.Timing.Clock.GetUtcNow() };
 
         // What the session reported when it was opened is compared with the run profile before anything is
         // sent, so a configuration that was not honored costs nothing.
@@ -275,22 +278,22 @@ internal sealed class TurnDriver
 
             case CommandStarted started:
                 context.FirstActionAt ??= _services.Clock.GetUtcNow();
-                BeginTool(context, role, started.ItemId, "command", state);
+                BeginTool(context, role, started.ItemId, "command", started.At, state);
                 break;
 
             case CommandCompleted completed:
-                EndTool(completed.ItemId, state);
+                EndTool(completed.ItemId, completed.At, state);
                 break;
 
             case ToolActivity tool:
                 context.FirstActionAt ??= _services.Clock.GetUtcNow();
                 if (tool.Status == "started")
                 {
-                    BeginTool(context, role, tool.ItemId, "tool", state);
+                    BeginTool(context, role, tool.ItemId, "tool", tool.At, state);
                 }
                 else
                 {
-                    EndTool(tool.ItemId, state);
+                    EndTool(tool.ItemId, tool.At, state);
                 }
 
                 break;
@@ -354,21 +357,25 @@ internal sealed class TurnDriver
 
     /// <summary>
     /// The time an agent spends in a tool is measured from the moment it reports the start to the moment it
-    /// reports the end. What is kept says whose tool it was, not what it was given.
+    /// reports the end: the times the adapter read the reports, not when the turn takes them up, which on a busy
+    /// machine can be later and both at once. A report with a time from before the turn, left from an earlier turn
+    /// or not made on the clock of the run, counts from when it is taken up. What is kept says whose tool it was,
+    /// not what it was given.
     /// </summary>
-    private static void BeginTool(RunContext context, AgentRole role, string itemId, string what, TurnState state)
+    private static void BeginTool(RunContext context, AgentRole role, string itemId, string what, DateTimeOffset reportedAt, TurnState state)
     {
         if (itemId.Length > 0 && !state.Tools.ContainsKey(itemId))
         {
-            state.Tools[itemId] = context.Timing.Start(SpanKind.ToolActivity, $"{RoleName(role)}: {what}");
+            state.Tools[itemId] = context.Timing.Start(
+                SpanKind.ToolActivity, $"{RoleName(role)}: {what}", startedAt: reportedAt >= state.Began ? reportedAt : null);
         }
     }
 
-    private static void EndTool(string itemId, TurnState state)
+    private static void EndTool(string itemId, DateTimeOffset reportedAt, TurnState state)
     {
         if (state.Tools.Remove(itemId, out var tool))
         {
-            tool.Dispose();
+            tool.End(reportedAt);
         }
     }
 

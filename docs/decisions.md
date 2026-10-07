@@ -113,18 +113,24 @@ in this section and the next serve it.
   that stops part-way leaves a directory that is still recognised. The API key goes on its own, so that
   a failure of one does not keep the other. Without `--remove-data`, the advice is to delete the folder:
   once the program is gone, there is no installation left that `yav uninstall --remove-data` could remove
-  first.
+  first. For the same reason, `yav uninstall --remove-data` where YAV Shell is not installed asks nothing
+  and removes nothing, and says that the folder can be deleted by hand.
 * **The offer at the start.** `yav` started without arguments, from the single file, with a console for
   input and output, while YAV Shell is not installed for your account or its program is gone, asks
-  first whether to install it: Enter or `y` installs, `n` starts YAV without installing it. In a
-  window Windows opened for `yav.exe` alone, as it does for a double-click in Explorer, the window
-  waits for Enter after the installation and then closes; there every start asks, and an installed
-  older version is offered to be replaced. In a console you had open, the shell starts after the
-  installation, and a "no" is remembered (`installOfferDeclined` in `settings.json`), so that a copy
-  you use where it is does not ask at every start. `yav install` installs at any time. A console window
-  that was started hidden counts as none: nobody could answer there. The offer is a convenience, so
-  nothing that goes wrong in it keeps the shell from starting; what failed is said, with the step it
-  failed in, and a "no" that could not be saved is said to be asked again next time.
+  first whether to install it: Enter or `y` installs, `n` starts YAV without installing it. A `yav.exe`
+  that runs from a directory holding a `yav-install.json` of YAV Shell, such as a copy installed with
+  `--no-register`, is an installation already and is not offered one. In a window Windows opened for
+  `yav.exe` alone, as it does for a double-click in Explorer, the window waits for Enter after the
+  installation and then closes; there every start asks, and an installed older version is offered to be
+  replaced. In a console you had open, the shell starts after the installation, and a "no" is
+  remembered (`installOfferDeclined` in `settings.json`), so that a copy you use where it is does not
+  ask at every start. `yav install` installs at any time. A console window that was started hidden
+  counts as none: nobody could answer there. The offer is a convenience, so nothing that goes wrong in
+  the offer itself keeps the shell from starting; what failed is said, with the step it failed in, and
+  a "no" that could not be saved is said to be asked again next time. An installation that was refused
+  or failed is said on the error output: in a console you had open, the shell starts after it; a window
+  of its own closes, after Enter, with exit code 5. Ctrl+C stops an installation started from the offer
+  between two files, as it stops `yav install`.
 * **The version is 0.2.0.** What was verified as 0.1.1 - the two runs with real models, the package and
   its SHA-256 - belongs to a program that is not the one built now. The records of 0.1.0 and 0.1.1
   stay what they are: history.
@@ -275,7 +281,10 @@ or where they stand against something that comes first. Each of them can be adde
   it is proprietary (all rights reserved), and on 2026-10-07, before publishing it on GitHub, that other
   people may use it: anyone may download and use `yav.exe` free of charge, personally or at work; the
   source is published to be read and reviewed, and copying, modifying or redistributing it still needs
-  written permission. The licenses of what is distributed with it are in `THIRD-PARTY-NOTICES.md`.
+  written permission. On 2026-10-07 its owner also decided that viewing and forking the repository on
+  GitHub, as GitHub's Terms of Service permit for public repositories, is permitted, and that a fork
+  grants no rights beyond those the license states. The licenses of what is distributed with it are in
+  `THIRD-PARTY-NOTICES.md`.
 
 ## Process
 
@@ -301,6 +310,12 @@ or where they stand against something that comes first. Each of them can be adde
   [Yavinesh2025/yav-shell](https://github.com/Yavinesh2025/yav-shell), a public repository. Pushes go to
   `main` only. CI runs on every push to `main` and every pull request to it, and a tag `v<version>`
   makes the release ([CI/CD](#cicd)).
+* **Its topics are `windows`, `cli`, `coding-agent`, `code-review`, `claude-code` and `codex-cli`,** as
+  you chose on 2026-10-07. GitHub's search and the page of the repository list it under them.
+* **`main` has no ruleset and no branch protection: a ruleset was offered on 2026-10-07, and you did not
+  want it.** It would have refused a force push to `main` and the deletion of `main`; without it, GitHub
+  refuses no force push to `main`, and refuses to delete `main` only while it is the default branch. The
+  tag of a published release cannot be moved anyway, because releases are immutable ([CI/CD](#cicd)).
 
 ## CI/CD
 
@@ -340,9 +355,39 @@ or where they stand against something that comes first. Each of them can be adde
   for a result is left; it never replaces a release. The text of the release gives the SHA-256 of each
   document; the attestation is for `yav.exe` only. The job that builds can only read the repository; the
   jobs that sign the attestation and publish run none of its code.
+* **Releases are immutable, as you chose on 2026-10-07, before the first one was published.** The files
+  of a published release cannot be changed or deleted, and its tag cannot be moved; only its title and
+  text, and whether it is marked as a pre-release or as the latest release, can still be changed. A
+  faulty release is therefore followed by a new version, not repaired: the tag name of an immutable
+  release cannot be used again, not even after the release is deleted. The setting applies to the
+  releases published after it was turned on, which are all the releases of this repository.
+  `release.yml` attaches every file before the release is published (`gh release create` makes a draft
+  and publishes it after the last file), as GitHub advises for immutable releases. GitHub adds an
+  attestation of its own to an immutable release, a record of its tag, its commit and its files, which
+  `gh release verify v<version> -R Yavinesh2025/yav-shell` checks on GitHub;
+  `gh release verify-asset v<version> yav.exe -R Yavinesh2025/yav-shell` checks a downloaded file
+  against it. That attestation comes next to the attestation of the build below and does not replace
+  it: it says what the release holds, not where `yav.exe` was built.
 * **Every action is pinned to the full SHA of a commit**, with its version in a comment, because a tag
   can be moved to other code and a SHA cannot. Dependabot proposes newer versions of the actions once
   a week, and no NuGet packages: their versions are pinned and change only with a full test run.
+* **Only actions that GitHub owns can run, besides those of `Yavinesh2025` itself, and only by a full
+  SHA: the repository enforces both, as you chose on 2026-10-07.** Its settings allow the actions of the
+  organizations `actions` and `github` and no others, not those of verified creators either, besides
+  the actions of the repositories of `Yavinesh2025`, which the option they use (**Allow Yavinesh2025,
+  and select non-Yavinesh2025, actions and reusable workflows**) always allows. They allow an action only
+  when it is named by the full SHA of a commit. A workflow that is changed to name an action of another
+  owner, or an action by a tag or a branch, cannot use it, whatever the workflow file says. Every action
+  the workflows use belongs to `actions`. The SHA rule leaves out reusable workflows, which can still be
+  named by a tag; the list of allowed owners covers them too. The workflows call none.
+* **Dependabot alerts are on, and Dependabot opens no pull requests for security updates, as you chose
+  on 2026-10-07.** An alert on the **Security** tab says that a dependency of the repository has a known
+  vulnerability; what follows is decided by hand, because a NuGet version changes only with a full test
+  run. The weekly proposals for the actions (`.github/dependabot.yml`) are not affected.
+* **The CI runs of a pull request from a fork wait for approval only when its author, or the user whose
+  action started the run, has never had a commit or pull request merged into the repository.** That is
+  GitHub's default, which you kept on 2026-10-07; approval for the runs of every outside contributor was
+  offered and not wanted. Such a run gets no secrets and a token that can only read the repository.
 * **A release carries an attestation of where `yav.exe` was built**, because `yav.exe` is not
   code-signed: Windows cannot say who built it, and `gh attestation verify` can say that the release
   workflow of this repository did, from the tag, on a runner of GitHub. The published command - in the

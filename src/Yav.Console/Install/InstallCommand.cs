@@ -188,6 +188,27 @@ public static class InstallCommand
                 return ExitCodes.Failed;
             }
 
+            // Looked for before anything is asked: the data goes only together with an installation, and a yes that
+            // would remove nothing is not asked for.
+            try
+            {
+                if (world.Installer.InstallationToRemove(options.InstallDirectory ?? world.InstallDirectory, world.Program) is null)
+                {
+                    await world.Error.WriteLineAsync("yav: " + NotInstalled(world)).ConfigureAwait(false);
+                    return ExitCodes.Failed;
+                }
+            }
+            catch (InstallException ex)
+            {
+                await world.Error.WriteLineAsync("yav: " + ex.Message).ConfigureAwait(false);
+                return ExitCodes.Failed;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or ArgumentException or NotSupportedException)
+            {
+                await world.Error.WriteLineAsync($"yav: the removal could not be completed: {ex.Message}").ConfigureAwait(false);
+                return ExitCodes.Failed;
+            }
+
             var hasData = Directory.Exists(home);
             if (hasData || KeyStored(world))
             {
@@ -246,6 +267,24 @@ public static class InstallCommand
         }
 
         return ExitCodes.Success;
+    }
+
+    /// <summary>
+    /// What --remove-data says when there is no installation to remove: nothing was removed, and the data, which goes only
+    /// together with an installation, is removed by hand. The directory was found to be YAV's alone before.
+    /// </summary>
+    private static string NotInstalled(InstallSurroundings world)
+    {
+        var home = world.Data.Home;
+        var keyStored = KeyStored(world);
+        var data = Directory.Exists(home)
+            ? keyStored
+                ? $"Your data is in {home}; to remove it, delete that folder, and the API key YAV stored in the Windows Credential Manager (its name begins with YavShell/)."
+                : $"Your data is in {home}; to remove it, delete that folder."
+            : keyStored
+                ? $"{home} does not exist; to remove the API key YAV stored for it, delete it in the Windows Credential Manager (its name begins with YavShell/)."
+                : $"There is no data of YAV to remove either: {home} does not exist, and no API key is stored for it.";
+        return "YAV Shell is not installed for this user account, so nothing was removed. " + data;
     }
 
     /// <summary>Removes the data directory and the API key, each on its own, and says what was removed and what was kept. False when anything was kept.</summary>
