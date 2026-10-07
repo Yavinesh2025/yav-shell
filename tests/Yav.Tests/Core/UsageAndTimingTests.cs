@@ -255,6 +255,8 @@ public class RunStateMachineTests
     [InlineData(RunState.ReadyToApply, RunState.Completed)]
     [InlineData(RunState.Checking, RunState.RateLimited)]
     [InlineData(RunState.Implementing, RunState.NeedsReconciliation)]
+    // An answer that changed nothing: freezing the workspace, the first step of checking, showed there is nothing to apply.
+    [InlineData(RunState.Checking, RunState.Completed)]
     public void The_pipeline_transitions_are_allowed(RunState from, RunState to)
     {
         Assert.True(RunStateMachine.CanTransition(from, to));
@@ -265,7 +267,8 @@ public class RunStateMachineTests
     [InlineData(RunState.Implementing, RunState.ReadyToApply)]
     [InlineData(RunState.Repairing, RunState.ReadyToApply)]
     [InlineData(RunState.Preparing, RunState.ReadyToApply)]
-    [InlineData(RunState.Checking, RunState.Completed)]
+    // Not even for an answer: only freezing the workspace shows that nothing was changed.
+    [InlineData(RunState.Implementing, RunState.Completed)]
     [InlineData(RunState.Repairing, RunState.Completed)]
     [InlineData(RunState.Blocked, RunState.Completed)]
     [InlineData(RunState.Blocked, RunState.ReadyToApply)]

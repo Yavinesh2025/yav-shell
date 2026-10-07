@@ -130,7 +130,6 @@ public sealed partial class InteractiveShell
 
     private async Task ChooseModelAsync(AgentRole role, List<string> args, CancellationToken cancellationToken)
     {
-        var name = role == AgentRole.Implementer ? "Model A" : "Model B";
         if (args.Count is 0 or > 2)
         {
             _ui.Warn($"Usage: /models {(role == AgentRole.Implementer ? "a" : "b")} <adapter> <model>");
@@ -183,6 +182,18 @@ public sealed partial class InteractiveShell
             return;
         }
 
+        RecordModel(role, adapterId, model, modelId, guided: false);
+        _ui.Muted("This applies to the next task. A run that is active keeps the models it started with.");
+    }
+
+    /// <summary>
+    /// Keeps the model the user chose for a role, at the maximum effort the provider lists, and says what follows
+    /// from the choice. /models and the guided first run both record a choice here.
+    /// </summary>
+    /// <param name="guided">True when the guided first run asks for what is missing next, so the command for it is not named.</param>
+    private void RecordModel(AgentRole role, string adapterId, ModelInfo? model, string modelId, bool guided)
+    {
+        var name = role == AgentRole.Implementer ? "Model A" : "Model B";
         var selection = new RoleSelection(adapterId, model?.Id ?? modelId);
         Save(settings => role == AgentRole.Implementer ? settings with { ModelA = selection } : settings with { ModelB = selection });
         _ui.Say($"{name} is {selection.ModelId} through {adapterId}, at the maximum effort the provider lists.");
@@ -194,7 +205,10 @@ public sealed partial class InteractiveShell
         else if (model.SupportedEfforts.Count > 0 && ProfileResolver.HighestEffort(model.SupportedEfforts) is null)
         {
             _ui.Warn("This model lists an effort value YAV cannot rank, so the maximum is not chosen for you. " + ProfileResolver.DescribeEfforts(model, model.SupportedEfforts));
-            _ui.Muted($"Choose the exact value: /effort {(role == AgentRole.Implementer ? "a" : "b")} <value>");
+            if (!guided)
+            {
+                _ui.Muted($"Choose the exact value: /effort {(role == AgentRole.Implementer ? "a" : "b")} <value>");
+            }
         }
 
         var other = role == AgentRole.Implementer ? _services.Settings.ModelB : _services.Settings.ModelA;
@@ -203,8 +217,6 @@ public sealed partial class InteractiveShell
         {
             _ui.Warn("Model A and Model B are now the same model. That is not the dual-model workflow; with Quality Lock it does not run.");
         }
-
-        _ui.Muted("This applies to the next task. A run that is active keeps the models it started with.");
     }
 
     private async Task EffortAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
@@ -252,15 +264,26 @@ public sealed partial class InteractiveShell
             return;
         }
 
-        var implementer = args[0].Equals("a", StringComparison.OrdinalIgnoreCase);
+        if (await SetEffortAsync(args[0].Equals("a", StringComparison.OrdinalIgnoreCase), args[1], cancellationToken).ConfigureAwait(false))
+        {
+            _ui.Muted("This applies to the next run. A run that is active keeps the effort it started with.");
+        }
+    }
+
+    /// <summary>
+    /// Sets the effort of a role to a value the model lists, or to "maximum", as /effort does. Nothing is changed,
+    /// and nothing lowered, when the model does not list the value. False when nothing was set.
+    /// </summary>
+    private async Task<bool> SetEffortAsync(bool implementer, string value, CancellationToken cancellationToken)
+    {
+        var letter = implementer ? "A" : "B";
         var current = implementer ? _services.Settings.ModelA : _services.Settings.ModelB;
         if (current is null)
         {
-            _ui.Warn($"Model {args[0].ToUpperInvariant()} is not chosen yet. Choose it with /models first.");
-            return;
+            _ui.Warn($"Model {letter} is not chosen yet. Choose it with /models first.");
+            return false;
         }
 
-        var value = args[1];
         if (value.Equals("max", StringComparison.OrdinalIgnoreCase) || value.Equals("maximum", StringComparison.OrdinalIgnoreCase))
         {
             // "max" is also a value some providers list. It is that value when the model lists it, and the preference otherwise.
@@ -282,22 +305,22 @@ public sealed partial class InteractiveShell
                 if (match is null)
                 {
                     _ui.Warn($"{current.ModelId} does not list the effort '{value}'. Listed: {(model.SupportedEfforts.Count == 0 ? "none" : string.Join(", ", model.SupportedEfforts))}. Nothing was changed, and nothing is lowered for you.");
-                    return;
+                    return false;
                 }
 
                 value = match;
                 var highest = ProfileResolver.HighestEffort(model.SupportedEfforts);
                 if (highest is not null && !highest.Equals(value, StringComparison.OrdinalIgnoreCase))
                 {
-                    _ui.Warn($"'{value}' is below the maximum this model lists ('{highest}'). That is your choice; /effort {args[0]} maximum returns to it.");
+                    _ui.Warn($"'{value}' is below the maximum this model lists ('{highest}'). That is your choice; /effort {letter.ToLowerInvariant()} maximum returns to it.");
                 }
             }
         }
 
         var changed = current with { EffortPreference = value };
         Save(settings => implementer ? settings with { ModelA = changed } : settings with { ModelB = changed });
-        _ui.Say($"Model {args[0].ToUpperInvariant()} effort: {(changed.WantsMaximum ? "maximum supported" : changed.EffortPreference)}");
-        _ui.Muted("This applies to the next run. A run that is active keeps the effort it started with.");
+        _ui.Say($"Model {letter} effort: {(changed.WantsMaximum ? "maximum supported" : changed.EffortPreference)}");
+        return true;
     }
 
     private void Quality(IReadOnlyList<string> args)
@@ -306,16 +329,26 @@ public sealed partial class InteractiveShell
         if (args.Count == 0)
         {
             _ui.Heading("Quality Lock and what a candidate has to pass");
-            _ui.Pairs(
-            [
+            var pairs = new List<(string, string, Tone)>
+            {
                 ("Quality Lock", settings.QualityLock ? "ON: models, effort, review and billing route are held to what you chose" : "OFF", settings.QualityLock ? Tone.Success : Tone.Warning),
                 ("Policy", settings.Strict ? "strict: a setting the provider did not confirm blocks the run" : "relaxed: an unconfirmed setting is shown as Requested / Unverified and the run goes on", settings.Strict ? Tone.Normal : Tone.Warning),
                 ("Review by Model B", "required, in its own conversation, read-only", Tone.Normal),
-                ("Required checks", settings.RequireGates ? "required: a project without approved checks does not run" : "optional: a candidate can be accepted on the review alone", settings.RequireGates ? Tone.Normal : Tone.Warning),
+                ("Required checks", settings.RequireGates ? "required: a project with no approved check that is required does not run" : "optional: a candidate can be accepted on the review alone", settings.RequireGates ? Tone.Normal : Tone.Warning),
+            };
+            if (settings.RequireGates && _session.ProjectPath is { } project && _services.Database.IsReviewOnlyAccepted(project))
+            {
+                var (text, tone) = DescribeReviewOnly(project);
+                pairs.Add(("This project", text + " (/quality gates required withdraws it)", tone));
+            }
+
+            pairs.AddRange(
+            [
                 ("Repair cycles", $"{settings.Limits.MaxRepairCycles} after the first candidate (/limits repairs <n>)", Tone.Normal),
                 ("Failures that were already there", settings.RepairPreExistingFailures ? "sent to Model A for repair" : "your decision: waive them, or fix them first", Tone.Normal),
                 ("Adaptive", settings.Adaptive ? "ON: runs are marked Adaptive, not Strict Max" : "OFF", settings.Adaptive ? Tone.Warning : Tone.Normal),
             ]);
+            _ui.Pairs(pairs);
             _ui.Muted("Change with /quality lock|strict on|off, /quality gates required|optional, /quality preexisting ask|repair.");
             _ui.Muted("Quality Lock keeps the configuration and the acceptance requirements. It cannot make a model's answer correct or the same twice.");
             return;
@@ -345,8 +378,15 @@ public sealed partial class InteractiveShell
             case "gates" when value is "required" or "optional":
                 Save(s => s with { RequireGates = value == "required" });
                 _ui.Say(value == "required"
-                    ? "Required checks: a project without approved checks does not run."
-                    : "Required checks are optional: a candidate can be accepted although nothing was run to check it. Approved checks still run and still have to pass.", value == "required" ? Tone.Normal : Tone.Warning);
+                    ? "Required checks: a project with no approved check that is required does not run."
+                    : "Required checks are optional: a candidate can be accepted although nothing was run to check it. Approved checks that are required still run and still have to pass.", value == "required" ? Tone.Normal : Tone.Warning);
+
+                // Required means required here as well: what was accepted for the project that is open is withdrawn.
+                if (value == "required" && _session.ProjectPath is { } open && _services.Database.WithdrawReviewOnly(open))
+                {
+                    _ui.Say("Withdrawn for this project as well: it does not run again until an approved check is required for it, or you accept the review alone once more.");
+                }
+
                 break;
 
             case "preexisting" when value is "ask" or "repair":
@@ -362,6 +402,29 @@ public sealed partial class InteractiveShell
         }
 
         _ui.Muted("This applies to the next run. A run that is active keeps the policy it started with.");
+    }
+
+    /// <summary>
+    /// What the acceptance of the review alone means for a project now, as a run decides it: it applies only while no
+    /// approved check is required for the project, and not while the checks of the project cannot be read. An approved
+    /// check that is optional does not count, because a run does not run it.
+    /// </summary>
+    private (string Text, Tone Tone) DescribeReviewOnly(string project)
+    {
+        var state = _services.Validation.LoadConfiguration(project);
+        if (state.Errors.Count > 0)
+        {
+            return ($"accepted for review only, but that does not apply while its checks cannot be read: {state.Errors[0]}", Tone.Warning);
+        }
+
+        if (state.Effective.RequiredGates.Any())
+        {
+            return ("accepted for review only, but that does not apply while an approved check is required for it: its required checks run", Tone.Normal);
+        }
+
+        return (state.Effective.Gates.Count == 0
+            ? "review only, as you accepted: no check is approved for it, so a candidate is accepted on the review alone"
+            : "review only, as you accepted: none of its approved checks is required, and a run does not run an optional one, so a candidate is accepted on the review alone", Tone.Warning);
     }
 
     private async Task SpeedAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
@@ -513,50 +576,72 @@ public sealed partial class InteractiveShell
                 continue;
             }
 
-            var key = auth.RouteKey(adapter.Id);
-            var acknowledged = _services.Database.IsRouteAcknowledged(key);
-            _ui.Pairs(
-            [
-                ("Account route", auth.RouteLabel, Tone.Normal),
-                ("Billing", DoctorChecks.Describe(auth.Billing), Tone.Normal),
-                ("Read from", auth.Source, Tone.Muted),
-                ("For this integration", auth.Policy switch
-                {
-                    RoutePolicy.Allowed => "documented by the provider",
-                    RoutePolicy.NotPermitted => "not permitted by the provider",
-                    _ => acknowledged ? "acknowledged by you" : "needs your acknowledgement",
-                }, auth.Policy == RoutePolicy.NotPermitted ? Tone.Error : acknowledged || auth.Policy == RoutePolicy.Allowed ? Tone.Success : Tone.Warning),
-            ]);
-            if (!string.IsNullOrWhiteSpace(auth.PolicyNote))
-            {
-                _ui.Quote(auth.PolicyNote, Tone.Muted);
-            }
-
+            var acknowledged = ShowRoute(adapter, auth);
             if (auth.Policy == RoutePolicy.RequiresAcknowledgement && !acknowledged && (wanted is not null || flags.Contains("--acknowledge")))
             {
-                if (await ConfirmAsync($"Use '{auth.RouteLabel}' for runs of YAV, billed as stated above?", cancellationToken).ConfigureAwait(false))
-                {
-                    // The same account serves every adapter of the provider.
-                    foreach (var sibling in _services.Adapters.Values.Where(a => a.Provider == adapter.Provider))
-                    {
-                        _services.Database.AcknowledgeRoute(auth.RouteKey(sibling.Id), $"{auth.RouteLabel}; {auth.PolicyNote}");
-                    }
-
-                    _ui.Success("  Acknowledged. It is asked again when the account route changes.");
-                }
+                await AcknowledgeRouteAsync(adapter, auth, cancellationToken).ConfigureAwait(false);
             }
         }
 
         _ui.Muted("YAV never sees a password or a token. It shows what the agents themselves report about the account they use.");
     }
 
-    private async Task ProviderLoginAsync(IAgentAdapter adapter, CancellationToken cancellationToken)
+    /// <summary>
+    /// Shows through which account an agent works, how that is billed and whether the route may be used for runs
+    /// of YAV. True when the user acknowledged the route before.
+    /// </summary>
+    private bool ShowRoute(IAgentAdapter adapter, AuthStatus auth)
+    {
+        var acknowledged = _services.Database.IsRouteAcknowledged(auth.RouteKey(adapter.Id));
+        _ui.Pairs(
+        [
+            ("Account route", auth.RouteLabel, Tone.Normal),
+            ("Billing", DoctorChecks.Describe(auth.Billing), Tone.Normal),
+            ("Read from", auth.Source, Tone.Muted),
+            ("For this integration", auth.Policy switch
+            {
+                RoutePolicy.Allowed => "documented by the provider",
+                RoutePolicy.NotPermitted => "not permitted by the provider",
+                _ => acknowledged ? "acknowledged by you" : "needs your acknowledgement",
+            }, auth.Policy == RoutePolicy.NotPermitted ? Tone.Error : acknowledged || auth.Policy == RoutePolicy.Allowed ? Tone.Success : Tone.Warning),
+        ]);
+        if (!string.IsNullOrWhiteSpace(auth.PolicyNote))
+        {
+            _ui.Quote(auth.PolicyNote, Tone.Muted);
+        }
+
+        return acknowledged;
+    }
+
+    /// <summary>
+    /// Asks whether the route shown may be used for runs of YAV, and records the answer for every adapter of the
+    /// provider. Only a typed yes acknowledges it. True when it was acknowledged.
+    /// </summary>
+    private async Task<bool> AcknowledgeRouteAsync(IAgentAdapter adapter, AuthStatus auth, CancellationToken cancellationToken)
+    {
+        if (!await ConfirmAsync($"Use '{auth.RouteLabel}' for runs of YAV, billed as stated above?", cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        // The same account serves every adapter of the provider.
+        foreach (var sibling in _services.Adapters.Values.Where(a => a.Provider == adapter.Provider))
+        {
+            _services.Database.AcknowledgeRoute(auth.RouteKey(sibling.Id), $"{auth.RouteLabel}; {auth.PolicyNote}");
+        }
+
+        _ui.Success("  Acknowledged. It is asked again when the account route changes.");
+        return true;
+    }
+
+    /// <summary>Starts the provider's own sign-in after the user confirmed it. True when it was started; the account is read again afterwards.</summary>
+    private async Task<bool> ProviderLoginAsync(IAgentAdapter adapter, CancellationToken cancellationToken)
     {
         var flow = adapter.GetLoginFlow();
         if (flow is null)
         {
             _ui.Warn("  This agent has no sign-in that YAV could start. Sign in with the agent's own program.");
-            return;
+            return false;
         }
 
         foreach (var note in flow.Notes)
@@ -566,12 +651,13 @@ public sealed partial class InteractiveShell
 
         if (!await ConfirmAsync($"Start {flow.Description} now? It takes over the console until it is done.", cancellationToken).ConfigureAwait(false))
         {
-            return;
+            return false;
         }
 
         var exitCode = await ForegroundAsync(new ProcessSpec(flow.Executable, flow.Arguments, Environment.CurrentDirectory, Io: ProcessIo.InheritConsole), cancellationToken).ConfigureAwait(false);
         Coordinator.Catalog.Invalidate(adapter.Id);
         _ui.Say(exitCode == 0 ? "  The sign-in ended. /login shows the account that is used now." : $"  The sign-in ended with exit code {exitCode}.");
+        return true;
     }
 
     private async Task ApiKeyAsync(string? provider, bool forget, CancellationToken cancellationToken)

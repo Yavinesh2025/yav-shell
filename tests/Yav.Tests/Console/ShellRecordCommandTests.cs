@@ -715,12 +715,17 @@ public class ShellRecordCommandTests
 
         shell.StartIn(missing);
         await shell.WaitForPromptAsync();
-        await shell.EnterAndWaitAsync(Task);
+        shell.Enter(Task);
+
+        // The folder is asked for; without an answer nothing is selected and nothing is sent.
+        await shell.AnswerWhenAskedAsync("Project folder - type or paste its path, then Enter:", string.Empty);
+        await shell.WaitForPromptAsync();
 
         shell.AssertShows(
             $"The directory '{missing}' does not exist. Select a project with /open <path>.",
             "Project: none selected - use /open <path>",
-            "No project is selected, so the request was not sent. Select one with /open <path>.");
+            "No project is selected, so the request has nowhere to go yet.",
+            "The request was not sent. /open <path> selects a project.");
         Assert.Equal("YAV>", shell.Terminal.CursorLine);
         Assert.Empty(shell.Agents.CodexRequests("thread/start"));
     }

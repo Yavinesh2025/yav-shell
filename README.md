@@ -1,5 +1,7 @@
 # YAV Shell
 
+[![CI](https://github.com/Yavinesh2025/yav-shell/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Yavinesh2025/yav-shell/actions/workflows/ci.yml)
+
 A console application for Windows in which two models of your choice work on your code: **Model A**
 implements, **Model B** reviews independently, your project's required checks run alongside, and only
 a candidate that passed all of it is offered for applying. It starts with `yav`, runs inside the
@@ -15,29 +17,70 @@ YAV C:\Projects\MyApp> Fix the login bug and add regression tests.
 [READY]   Changes available for inspection (/diff) and application (/apply)
 ```
 
+## Start
+
+1. **Get `yav.exe`.** It is one file. Download it, with `yav.exe.sha256`, from the
+   [latest release](https://github.com/Yavinesh2025/yav-shell/releases/latest) and check it as
+   [SECURITY.md](SECURITY.md#checking-a-download) says; or build it yourself: `scripts\package.ps1` makes
+   `dist\yav.exe` (see [Build and test](#build-and-test)).
+2. **Run it.** Double-click it, or start it in a console without arguments. It offers to install itself
+   for your user account, without administrator rights; `yav install` installs it without asking.
+3. **Open a new PowerShell window in the folder of a project and type `yav`.**
+4. **Type what you want done**, as in the example above. Text without a slash is a request; `/help`
+   lists the commands.
+
+The first request asks, before anything is sent, for what only you can decide: which model implements
+and which reviews, chosen from the models the agents list for your accounts; whether YAV may use the
+account each agent is signed in to, billed as that agent reports; which commands of the project may
+run as its required checks, or that a candidate of this project may be accepted on the review alone;
+and, where it applies, that files Git ignores will be missing from the isolated copy of the project.
+Your answers are kept. After that, a request is all it takes.
+
 YAV Shell contains no model and no coding agent. It drives the agent programs you have installed
 (Codex CLI, Claude Code) through their documented interfaces and with the accounts they are signed in
-to. Priorities, in this order: correctness and security, then elapsed time, then usage.
-
-**Version 0.1.1. Not code-signed. The Codex app-server interface it uses is labelled experimental by OpenAI.**
-It was tested with scripted agents and has made **two** runs with real models, of one small task.
-Read [what was verified and what was not](docs/verification.md) before relying on it.
-
-## Use it
+to. Install at least one of them, the way its vendor recommends, and sign in with it:
 
 ```powershell
-scripts\package.ps1                      # builds dist\yav-shell-0.1.1-win-x64 and the portable zip
-dist\yav-shell-0.1.1-win-x64\install.ps1 -AddToPath -Shortcut     # optional: install for your user account
-yav doctor                               # what YAV needs, and what it found
-cd C:\Projects\MyApp; yav                # the shell
+powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"   # Codex CLI, then: codex login
+irm https://claude.ai/install.ps1 | iex                                                   # Claude Code, then: claude
 ```
 
-The package brings the .NET runtime along. It is portable: `yav.exe` runs from wherever the package
-was unpacked, and `install.ps1` is only needed for PATH, the Start menu and "Installed apps".
+Both come from the vendors' documentation ([Codex CLI](https://learn.chatgpt.com/docs/codex/cli),
+[Claude Code](https://code.claude.com/docs/en/setup)); open a new console after installing. `yav doctor`
+shows what YAV needs and what it found. Priorities, in this order: correctness and security, then
+elapsed time, then usage.
+
+**Version 0.2.0. Not code-signed: Windows SmartScreen may warn when a downloaded `yav.exe` is started
+for the first time, and on a PC where Smart App Control is on, Windows does not start it at all. The
+Codex app-server interface it uses is labelled experimental by OpenAI.**
+YAV was tested with scripted agents. With real models it has made **two** runs of one small task, with
+versions 0.1.0 and 0.1.1; version 0.2.0, which changes how YAV is installed and how the first request
+is set up, has made none. Its installation by `yav.exe` was verified with the automated tests
+(2612 of 2612 passed, on 2026-10-07) and the checks of the package (29 of 29 where there is no .NET,
+no Git and no agent, and 37 of 37 on a new Windows, in Windows Sandbox); its guided first request only
+with the automated tests, against a scripted stand-in for the agents.
+Read [what was verified and what was not](docs/verification.md) before relying on it.
+
+## Installed, and removed
+
+Installing copies `yav.exe` to `%LOCALAPPDATA%\Programs\YavShell`, together with the license, the
+notices, the documentation and the examples it carries; adds that directory to the PATH of your user
+account, so that `yav` works in every console opened from then on; and lists YAV Shell under
+"Installed apps". Nothing else is changed. A console that was open before the installation does not
+know the new PATH yet: open a new one, or do what the installation says for that console.
+
+`yav.exe` brings the .NET runtime along, so nothing else has to be installed for it. It also runs
+without being installed, from wherever it is.
+
+`yav uninstall`, or "Installed apps" in the settings of Windows, removes the program, its PATH entry and
+its entry under "Installed apps", and leaves anything else in its directory where it is. Your data in
+`%LOCALAPPDATA%\YavShell` (settings, history, isolated workspaces) stays, unless you add `--remove-data`
+and type `yes`; even then it is removed only when it holds nothing that YAV did not create
+([user guide](docs/user-guide.md#install)).
 
 | | |
 |---|---|
-| [User guide](docs/user-guide.md) | commands, keys, `yav.project.json`, `yav run`, JSON output, exit codes |
+| [User guide](docs/user-guide.md) | installing, the first request, commands, keys, `yav.project.json`, `yav run`, JSON output, exit codes |
 | [Security boundaries](docs/security-boundaries.md) | what is enforced, by whom, and what is not |
 | [Adapters](docs/adapters.md) | what each agent interface can do, tested versions, limitations |
 | [Decisions](docs/decisions.md) | engineering decisions that were made while building, and why |
@@ -55,13 +98,17 @@ Requirements: Windows 11 x64, the .NET SDK 10.0.401 or a later 10.0 feature band
 scripts\build.ps1                 # builds everything
 scripts\test.ps1                  # the automated tests: fixtures only, no inference is requested
 scripts\test.ps1 -Live            # also asks the installed agents: version, account, models, schema. No inference
-scripts\summarize-tests.ps1       # writes docs\test-results.md from the last run
+scripts\summarize-tests.ps1       # writes docs\test-results.md (or the file -Output names) from the last run
 scripts\mutation-check.ps1        # breaks the code in known ways and expects the tests to notice
-scripts\package.ps1               # tests, then the package
-scripts\verify-package.ps1        # runs the package the way a machine without .NET would
+scripts\package.ps1               # tests, then dist\yav.exe: one self-contained file that installs itself
+scripts\verify-package.ps1        # uses dist\yav.exe the way a machine without .NET would: starts, installs and removes it
 scripts\verify-package.ps1 -Sandbox   # the same on a new Windows, in Windows Sandbox
 scripts\live-run.ps1              # ONE TASK WITH REAL MODELS. Its parts that ask a model consume usage and need -IAuthorizeUsage
 ```
+
+The `yav.exe` that `scripts\build.ps1` puts into `artifacts\` needs the files beside it, so it cannot
+install itself; `yav install` says so there. The single file that can is `dist\yav.exe`, made by
+`scripts\package.ps1`, with its SHA-256 in `dist\yav.exe.sha256`. Nothing is code-signed.
 
 `scripts\live-run.ps1` makes a scratch project from a task of the benchmark, sets the shell up the way
 a user does, gives the request to `yav run`, and looks at the result in the shell. Its parts `setup`
@@ -76,28 +123,49 @@ describes its parts.
 Build output goes to `artifacts\` and packages to `dist\`. Both are marked so that Dropbox does not
 synchronize them.
 
+On GitHub, the workflows in [`.github/workflows`](.github/workflows) run these scripts on a Windows
+runner, with the SDK that `global.json` names. Every push to `main` and every pull request to `main` runs
+`scripts\test.ps1 -Configuration Release -HangSeconds 900` (the stand-in only; no model is asked;
+a test that hangs ends the run after 15 minutes and is named),
+`scripts\package.ps1 -SkipTests` and `scripts\verify-package.ps1`. Each push to `main` has a run of
+its own, which a later push does not end; a newer push to a pull request ends the run before it.
+The tests with the installed agents and the mutation check do not run there, and no run with real
+models is made: `scripts\live-run.ps1` is started there only by its tests, against a stand-in for
+`yav.exe` that asks no model. The mutation check can be started by hand. A pushed tag `v<version>`
+builds that version from the tag in the same way, tests included, and publishes a GitHub Release
+with `yav.exe`, `yav.exe.sha256`, the Word guide (`YAV-Shell-<version>-Documentation-and-User-Guide.docx`)
+and the specification (`YAV-Shell-Specification.txt`), with `docs/release-notes/<version>.md` as its text.
+GitHub records where the release workflow built `yav.exe`, and this checks a download, with the
+version of the release in place of `<version>` ([SECURITY.md](SECURITY.md#checking-a-download)):
+
+```powershell
+gh attestation verify yav.exe --repo Yavinesh2025/yav-shell --signer-workflow Yavinesh2025/yav-shell/.github/workflows/release.yml --source-ref refs/tags/v<version> --deny-self-hosted-runners
+```
+
 ## Layout
 
 One program, built from modules that know each other only through the contracts in `Yav.Core`:
 
 | Module | |
 |---|---|
-| `src/Yav.Console` | `yav.exe`: command line, the shell, rendering, input |
+| `src/Yav.Console` | `yav.exe`: command line, the shell and its guided first request, rendering, input; in `Install/`, how it installs and removes itself |
 | `src/Yav.Coordinator` | a run from preparation to a candidate that is ready; apply, undo, recovery |
 | `src/Yav.Adapters` | Codex app server, Codex exec, Claude Code |
 | `src/Yav.Workspace` | isolated workspaces, baselines, candidates, journaled apply and undo |
 | `src/Yav.Validation` | `yav.project.json`, trust, running required checks |
 | `src/Yav.Storage` | SQLite: runs, evidence, usage, what you approved |
-| `src/Yav.Platform` | processes and job objects, the console, the Windows Credential Manager |
+| `src/Yav.Platform` | processes and job objects, the console, the Windows Credential Manager; in `Install/`, the PATH of the user and "Installed apps" |
 | `src/Yav.Core` | contracts, the acceptance gate, profiles, prompt templates |
 | `templates/` | the role instructions that are given to the models. Short, versioned, embedded at build time |
 | `tests/Yav.Tests` | the automated tests |
 | `tests/Yav.FakeAgent` | a scripted stand-in for the agent programs, which speaks their wire formats |
-| `installer/`, `scripts/` | per-user install and uninstall scripts, Inno Setup script, build scripts |
+| `scripts/` | build, test, package and verification scripts |
 | `bench/` | benchmark tasks, runner, results |
 
 ## License
 
-Copyright (c) 2026 Yavinesh Rajagopal. All rights reserved; see [LICENSE.txt](LICENSE.txt).
-Components by others that are distributed with YAV Shell remain under their own licenses:
+Copyright (c) 2026 Yavinesh Rajagopal. YAV Shell is proprietary software that is **free to use**: anyone
+may download and use `yav.exe`, personally or at work, free of charge. The source code is published to be
+read and reviewed; copying, modifying or redistributing it needs the copyright holder's written permission.
+The terms are in [LICENSE.txt](LICENSE.txt). Components by others that are distributed with YAV Shell remain under their own licenses:
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

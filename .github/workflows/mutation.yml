@@ -1,0 +1,122 @@
+# Mutation check, started by hand: scripts\mutation-check.ps1 breaks the code in known ways, one mutation at a time,
+# and expects the tests that protect each behavior to fail. It is not run on every push: it rewrites source files
+# while it runs, and the whole list takes hours. A job ends after at most 6 hours on a GitHub-hosted runner, which
+# may be too short for the whole list; skip and take divide it into parts, one run each.
+name: Mutation check
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: 'Only the mutations whose name contains this text (empty: every one between skip and take)'
+        required: false
+        type: string
+        default: ''
+      skip:
+        description: 'Leave out this many mutations from the beginning of the list'
+        required: false
+        type: number
+        default: 0
+      take:
+        description: 'Make no more than this many mutations (0: all that are left)'
+        required: false
+        type: number
+        default: 0
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  POWERSHELL_UPDATECHECK: 'Off'
+  POWERSHELL_TELEMETRY_OPTOUT: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  mutations:
+    name: Mutation check
+    runs-on: windows-2025
+    timeout-minutes: 355
+    env:
+      RestoreLockedMode: 'true'
+    steps:
+      # The same preparation as in ci.yml: the line endings of the repository, and exactly the SDK of global.json.
+      - name: Keep the line endings of the repository
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the .NET SDK version from global.json
+        id: sdk
+        run: |
+          $version = (Get-Content -LiteralPath global.json -Raw | ConvertFrom-Json).sdk.version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "global.json names the SDK '$version', not a version of three numbers." }
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "version=$version"
+
+      - name: Install the .NET SDK that global.json names
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}\dotnet
+        with:
+          dotnet-version: ${{ steps.sdk.outputs.version }}
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      # The inputs reach the script as values of its parameters, never as code. Each one is joined to the name of its
+      # parameter in one argument (-Only:<text>): given as two, a text that begins with '-', such as -Take, would be
+      # read as the name of a parameter, and the script would not start. Its output goes to the log of the step and
+      # to a file that is kept: the script writes no file of results itself.
+      - name: Break the code in known ways and run the tests that should notice
+        timeout-minutes: 340
+        env:
+          ONLY: ${{ inputs.only }}
+          SKIP: ${{ inputs.skip }}
+          TAKE: ${{ inputs.take }}
+        run: |
+          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+          $log = Join-Path $PWD.Path 'artifacts\mutation-check.log'
+          $arguments = @('-NoProfile', '-NonInteractive', '-File', '.\scripts\mutation-check.ps1')
+          if ($env:ONLY) { $arguments += "-Only:$($env:ONLY)" }
+          if ([int]$env:SKIP -gt 0) { $arguments += "-Skip:$([int]$env:SKIP)" }
+          if ([int]$env:TAKE -gt 0) { $arguments += "-Take:$([int]$env:TAKE)" }
+          & pwsh @arguments 2>&1 | Tee-Object -FilePath $log
+          exit $LASTEXITCODE
+
+      - name: Write the summary of the run
+        if: always()
+        continue-on-error: true
+        run: |
+          $log = 'artifacts\mutation-check.log'
+          $summary = [System.Collections.Generic.List[string]]::new()
+          $summary.Add('# Mutation check')
+          $summary.Add('')
+          if (Test-Path -LiteralPath $log) {
+            $lines = @(Get-Content -LiteralPath $log | ForEach-Object { $_ -replace '\x1b\[[0-9;]*m', '' })
+            $summary.AddRange([string[]]@($lines | Where-Object { $_ -match '^\d+ of \d+ mutation|mutation\(s\) (killed|cannot be made)' }))
+            $summary.Add('')
+            # Also the mutations that only the time limit of the script killed: a test hung, and no assertion failed.
+            foreach ($line in ($lines | Where-Object { $_ -match '^(SURVIVED|INVALID|UNCLEAR)\s' -or $_ -match '^KILLED\s.*killed by the time limit' })) { $summary.Add("- $($line.Trim())") }
+          }
+          else {
+            $summary.Add('The check did not start, so there is no log. The log of the step before says why.')
+          }
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary
+
+      - name: Keep the log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mutation-check-log
+          path: artifacts/mutation-check.log
+          if-no-files-found: warn
+          retention-days: 30
+          overwrite: true

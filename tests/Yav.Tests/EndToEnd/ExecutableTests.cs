@@ -198,6 +198,20 @@ public class ExecutableTests
     }
 
     [Fact]
+    public async Task Tables_reach_a_pipe_as_plain_text_also_where_GITHUB_ACTIONS_is_set()
+    {
+        // Spectre.Console, which formats the tables, switches ANSI on by itself where it sees that variable.
+        using var yav = new YavProcess();
+
+        var result = await yav.RunAsync(
+            [yav.Project.Path], input: "/status\n/exit\n", environment: new Dictionary<string, string?> { ["GITHUB_ACTIONS"] = "true" });
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(result.Lines, l => l.Contains("Account route and billing", StringComparison.Ordinal));
+        Assert.DoesNotContain('\u001b', result.Output);
+    }
+
+    [Fact]
     public async Task The_end_of_piped_input_lets_the_run_finish()
     {
         using var yav = new YavProcess().WithPassingRun();

@@ -1,18 +1,29 @@
 <#
 .SYNOPSIS
-    Checks the package the way a machine without .NET, Git and agents would use it.
+    Checks the package, dist\yav.exe, the way a machine without .NET, Git and agents would use it.
 .DESCRIPTION
-    Unpacks the portable package into a new directory and starts yav.exe with an environment that
-    contains nothing but Windows itself: no .NET, no Git, no agent on PATH, and a data directory of
-    its own. It then installs the package into another new directory with install.ps1, starts what
-    was installed, and removes it with uninstall.ps1.
+    Copies yav.exe into a new directory and starts it in a process of its own, for which exactly four
+    environment variables are replaced: PATH holds nothing but Windows, DOTNET_ROOT and DOTNET_ROOT(x86) lead
+    nowhere, and DOTNET_MULTILEVEL_LOOKUP is 0. So no .NET, no Git and no agent is on PATH. Every other variable
+    of this process is passed on as it is; the check itself sets YAV_HOME, TMP and TEMP to directories of its
+    own. It then lets the program install itself into another new directory with 'yav.exe install --dir ...
+    --no-path --no-register', compares what was installed with the files of the repository (the license, the
+    notices, the README, docs\*.md, licenses\*.txt and the examples), starts it, and lets the installed program
+    remove itself with 'yav uninstall --dir ...'.
 
-    With -Sandbox the same is done inside Windows Sandbox: a new, disposable Windows without any of
-    the software of this machine. That needs the Windows feature "Windows Sandbox" and opens its window.
+    With -Sandbox the same is done inside Windows Sandbox: a new, disposable Windows without any of the
+    software of this machine. There the program is also installed with the options a user gets by default -
+    into the default directory, with the PATH entry and the entry under "Installed apps" - and removed again
+    with the command that "Installed apps" runs. That needs the Windows feature "Windows Sandbox" and opens
+    its window.
 
-    Nothing of this machine is changed: PATH, the Start menu and "Installed apps" are left alone.
+    Both start yav hidden and with its input redirected, as a script does, so yav cannot ask anything: the
+    offer to install itself at the start, and a window of its own that waits for Enter before it closes, are
+    not exercised.
+
+    Without -Sandbox nothing of this machine is changed: PATH and "Installed apps" are left alone.
 .PARAMETER Package
-    The portable zip. Default: the newest one in dist\.
+    The program to check. Default: dist\yav.exe.
 .PARAMETER Sandbox
     Run the check in Windows Sandbox instead of on this machine.
 .PARAMETER TimeoutMinutes
@@ -28,25 +39,27 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repo = Split-Path -Parent $PSScriptRoot
-. (Join-Path $repo 'installer\YavInstall.ps1')
+. (Join-Path $PSScriptRoot 'package-tools.ps1')
 
-if (-not $Package) {
-    $Package = Get-ChildItem (Join-Path $repo 'dist') -Filter 'yav-shell-*-portable.zip' -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime | Select-Object -Last 1 -ExpandProperty FullName
-}
-
-if (-not $Package -or -not (Test-Path -LiteralPath $Package)) {
-    throw 'No package was found in dist\. Build it with scripts\package.ps1.'
+if (-not $Package) { $Package = Join-Path $repo 'dist\yav.exe' }
+if (-not (Test-Path -LiteralPath $Package -PathType Leaf)) {
+    throw "$Package does not exist. Build the package with scripts\package.ps1."
 }
 
 $Package = (Resolve-Path -LiteralPath $Package).ProviderPath
-
-$expected = ((Get-Content -LiteralPath "$Package.sha256" -Raw) -split '\s+')[0]
-$actual = Get-YavSha256 -Path $Package
-if ($expected -ne $actual) { throw "The package does not have the SHA-256 that was recorded for it: $actual instead of $expected." }
+$problems = @(Test-YavChecksumFile -Path $Package)
+if ($problems.Count -gt 0) { throw "The package is not the one that was built: $($problems -join ' ')" }
+$expected = Get-YavSha256 -Path $Package
+$version = Get-YavProductVersion -Repository $repo
 
 $results = Join-Path $repo 'artifacts\package-verification'
 New-Item -ItemType Directory -Path $results -Force | Out-Null
+
+# What the installation has to hold next to yav.exe, as the repository holds it: '<sha256>  <relative path>'.
+$installedFiles = @(Get-YavPackageFiles -Repository $repo | ForEach-Object { (Get-YavSha256 -Path (Join-Path $repo $_)) + '  ' + $_ })
+function Write-ExpectedFiles([string]$Path) {
+    [IO.File]::WriteAllLines($Path, [string[]]$installedFiles, (New-Object System.Text.UTF8Encoding $false))
+}
 
 if ($Sandbox) {
     $sandboxExe = Join-Path $env:SystemRoot 'System32\WindowsSandbox.exe'
@@ -56,8 +69,9 @@ if ($Sandbox) {
     $share = Join-Path $results 'sandbox'
     if (Test-Path $share) { Remove-Item $share -Recurse -Force }
     New-Item -ItemType Directory -Path $share | Out-Null
-    Copy-Item $Package (Join-Path $share 'package.zip')
+    Copy-Item -LiteralPath $Package -Destination (Join-Path $share 'yav.exe')
     Copy-Item (Join-Path $PSScriptRoot 'clean-machine-check.ps1') $share
+    Write-ExpectedFiles (Join-Path $share 'expected-files.txt')
 
     $configuration = Join-Path $share 'yav-check.wsb'
     @"
@@ -76,7 +90,7 @@ if ($Sandbox) {
     </MappedFolder>
   </MappedFolders>
   <LogonCommand>
-    <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\yav-check\clean-machine-check.ps1 -Package C:\yav-check\package.zip -Results C:\yav-check\result.json -ShutDown</Command>
+    <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\yav-check\clean-machine-check.ps1 -Package C:\yav-check\yav.exe -Sha256 $expected -Version $version -Results C:\yav-check\result.json -Expected C:\yav-check\expected-files.txt -ShutDown</Command>
   </LogonCommand>
 </Configuration>
 "@ | Set-Content -Path $configuration -Encoding utf8
@@ -95,11 +109,21 @@ if ($Sandbox) {
     Copy-Item $result (Join-Path $results 'clean-machine.json') -Force
 }
 else {
-    $work = Join-Path ([IO.Path]::GetTempPath()) ("yav pack√ge check " + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+    # A directory with a blank and a letter outside ASCII in its name, as a user's download directory may have. The
+    # letter is written as its number: this file is ASCII then, which every PowerShell reads in the same way.
+    $work = Join-Path ([IO.Path]::GetTempPath()) ('yav pack' + [char]0x00E4 + 'ge check ' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
     New-Item -ItemType Directory -Path $work | Out-Null
     try {
+        $copy = Join-Path $work 'download\yav.exe'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $copy) | Out-Null
+        Copy-Item -LiteralPath $Package -Destination $copy
         $result = Join-Path $work 'result.json'
-        # A process of its own, whose environment holds nothing but Windows itself.
+        $expectedFiles = Join-Path $work 'expected-files.txt'
+        Write-ExpectedFiles $expectedFiles
+
+        # A process of its own, for which exactly these four variables are replaced: PATH holds nothing but Windows,
+        # DOTNET_ROOT and DOTNET_ROOT(x86) lead nowhere, and DOTNET_MULTILEVEL_LOOKUP is 0. Every other variable of
+        # this process is passed on to it as it is; the check sets YAV_HOME, TMP and TEMP itself.
         $environment = @{
             PATH                     = "$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
             DOTNET_ROOT              = (Join-Path $work 'there is no dotnet here')
@@ -114,23 +138,30 @@ else {
 
         try {
             & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass `
-                -File (Join-Path $PSScriptRoot 'clean-machine-check.ps1') -Package $Package -Results $result -Work $work
+                -File (Join-Path $PSScriptRoot 'clean-machine-check.ps1') -Package $copy -Sha256 $expected -Version $version -Results $result -Expected $expectedFiles -Work $work
+            $checkExit = $LASTEXITCODE
         }
         finally {
             foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name]) }
         }
 
-        if (-not (Test-Path $result)) { throw 'The check gave no result.' }
+        if (-not (Test-Path $result)) { throw "The check gave no result. Windows PowerShell, which ran it, ended with exit code $checkExit." }
         $report = Get-Content $result -Raw | ConvertFrom-Json
         Copy-Item $result (Join-Path $results 'isolated-environment.json') -Force
     }
     finally {
-        Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+        # Not stopped by an error: a directory that cannot be removed must not hide the result, or the error that
+        # ended the check. It is said instead.
+        Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue -ErrorVariable notRemoved
+        if (Test-Path -LiteralPath $work) {
+            $reason = if ($notRemoved) { ': ' + $notRemoved[0].Exception.Message } else { '' }
+            Write-Warning "The work directory of the check could not be removed; delete it by hand: $work$reason"
+        }
     }
 }
 
 Write-Host ''
-Write-Host ("Checked {0} in {1}" -f [IO.Path]::GetFileName($Package), $report.where)
+Write-Host ("Checked {0} {1} in {2}" -f [IO.Path]::GetFileName($Package), $version, $report.where)
 foreach ($check in $report.checks) {
     $mark = if ($check.passed) { '[ok]  ' } else { '[FAIL]' }
     Write-Host ("  {0} {1}{2}" -f $mark, $check.name, $(if ($check.detail) { ': ' + $check.detail } else { '' }))

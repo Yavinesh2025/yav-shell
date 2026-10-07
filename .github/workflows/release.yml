@@ -1,0 +1,418 @@
+# Release: a pushed tag v<version> builds YAV Shell from that tag and publishes a GitHub Release that carries
+# yav.exe, yav.exe.sha256, the Word guide (docs\YAV Shell - Documentation and User Guide.docx, as
+# YAV-Shell-<version>-Documentation-and-User-Guide.docx) and the specification YAV Shell was built from (the
+# file at the root of the repository whose name begins with "Build YAV Shell", as YAV-Shell-Specification.txt).
+# The build runs the scripts a developer runs: scripts\package.ps1 runs the automated tests first and then builds
+# dist\yav.exe, and scripts\verify-package.ps1 checks the program it built. yav.exe is not code-signed, so GitHub
+# records where it was built (an attestation of its build provenance), which 'gh attestation verify' checks.
+#
+# Each job holds only what it needs. The job that runs the code of the repository can only read it; the job that
+# signs the attestation and the job that publishes run nothing of the repository.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # To build and publish a tag again after a run that ended before it published. Start it from the tag itself
+  # ("Use workflow from" > Tags), so that the run, and the attestation it signs, name the tag as their source.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The tag to release, for example v0.2.0. Start the workflow from that tag. A tag that has a release already is refused.'
+        required: true
+        type: string
+
+permissions: {}
+
+# One release run per tag, and none is cancelled: a release that has begun to publish has to be left to finish.
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  POWERSHELL_UPDATECHECK: 'Off'
+  POWERSHELL_TELEMETRY_OPTOUT: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  build:
+    name: Build, test and check yav.exe
+    runs-on: windows-2025
+    timeout-minutes: 150
+    permissions:
+      contents: read
+    env:
+      # The lock files are taken as they are: a restore that would have to change one fails instead.
+      RestoreLockedMode: 'true'
+      TAG: ${{ inputs.tag || github.ref_name }}
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      commit: ${{ steps.release.outputs.commit }}
+      tests: ${{ steps.summary.outputs.tests }}
+      checks: ${{ steps.summary.outputs.checks }}
+      image: ${{ steps.summary.outputs.image }}
+    steps:
+      # Git for Windows on the runner checks text files out with CRLF. The release is built from the files as the
+      # repository stores them, LF, on purpose. See ci.yml for how that differs from a PC with core.autocrlf=true.
+      - name: Keep the line endings of the repository
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+
+      # All of the history, for the check that the tag is on main.
+      - name: Check out the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # What in the tag itself refuses the release is checked before anything is built.
+      - name: Check the tag, the version and the release notes
+        id: release
+        run: |
+          if ($env:TAG -cnotmatch '^v\d+\.\d+\.\d+$') {
+            throw "A release tag is v and a version of three numbers, such as v0.2.0, not '$($env:TAG -replace '[^\x20-\x7E]', '?')'."
+          }
+          # A run that was started from a branch would name the branch as the source of what it built.
+          if ($env:GITHUB_REF -cne "refs/tags/$env:TAG") {
+            throw "This run is for $env:GITHUB_REF, not for the tag $env:TAG. Start it from the tag: 'Use workflow from' > Tags > $env:TAG, or gh workflow run release.yml --ref $env:TAG -f tag=$env:TAG"
+          }
+
+          # The version as the build scripts read it, which is the one yav.exe reports.
+          $version = & { . .\scripts\package-tools.ps1; Get-YavProductVersion -Repository $PWD.Path }
+          if ($env:TAG -cne "v$version") {
+            throw "The tag is $env:TAG, but Directory.Build.props names the version $version, whose tag is v$version. Nothing was built."
+          }
+
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) {
+            throw "The commit of $env:TAG is not on main. Only what is on main is released: push main, then start this workflow again."
+          }
+
+          $notes = "docs/release-notes/$version.md"
+          if (-not (Test-Path -LiteralPath $notes -PathType Leaf)) {
+            throw "$notes is missing. It is the text of the release: write it, commit it to main, and tag that commit."
+          }
+
+          # A placeholder for a result that was not filled in would be published: in the text of the release, on
+          # GitHub, and in the documentation that yav.exe carries and installs.
+          $files = @(git -c core.quotepath=false ls-files -- '*.md')
+          $open = @(Select-String -LiteralPath $files -Pattern '<!--\s*FILL')
+          if ($open.Count -gt 0) {
+            foreach ($match in $open) {
+              $relative = [IO.Path]::GetRelativePath($PWD.Path, $match.Path).Replace('\', '/')
+              Write-Output "::error file=$relative,line=$($match.LineNumber)::A placeholder for a result is still in this file."
+            }
+            throw "$($open.Count) placeholder(s) for results are still in the documentation, listed above. Fill them in, commit to main, and tag that commit."
+          }
+
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "tag=$env:TAG", "version=$version", "commit=$(git rev-parse HEAD)", "notes=$notes"
+
+      # Besides the program, the release carries the Word guide and the specification YAV Shell was built from, under
+      # names without spaces. They are put next to where the package is built, so that they are kept and published
+      # with it, and a document that is missing refuses the release before anything is built. The specification is
+      # found by the beginning of its name; the rest of it has characters outside ASCII.
+      - name: Take the documents the release carries
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $guide = 'docs\YAV Shell - Documentation and User Guide.docx'
+          if (-not (Test-Path -LiteralPath $guide -PathType Leaf)) {
+            throw "$guide is missing. The release carries it: commit it to main, and tag that commit. Nothing was built."
+          }
+          $specifications = @(Get-ChildItem -LiteralPath . -File -Filter 'Build YAV Shell*.txt')
+          if ($specifications.Count -ne 1) {
+            throw "The root of the repository has $($specifications.Count) files named 'Build YAV Shell*.txt'. The release carries one, the specification. Nothing was built."
+          }
+
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item -LiteralPath $guide -Destination "dist\YAV-Shell-$env:VERSION-Documentation-and-User-Guide.docx"
+          Copy-Item -LiteralPath $specifications[0].FullName -Destination 'dist\YAV-Shell-Specification.txt'
+          Get-ChildItem -LiteralPath dist -File | ForEach-Object { '{0}: {1:N0} bytes' -f $_.Name, $_.Length }
+
+      # Saves the build when the tag has a published release already. The token of this job can only read, so it
+      # does not see drafts; the job that publishes checks again, drafts included, before it creates anything.
+      - name: Check that the tag has no release yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view $env:TAG --json tagName 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { throw "There is a release for $env:TAG already. It is left as it is, and nothing was built." }
+          exit 0
+
+      # Exactly the SDK that global.json names, in a directory of its own (see ci.yml). No cache of packages for a
+      # release: they are restored from nuget.org and checked against the lock files.
+      - name: Read the .NET SDK version from global.json
+        id: sdk
+        run: |
+          $version = (Get-Content -LiteralPath global.json -Raw | ConvertFrom-Json).sdk.version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "global.json names the SDK '$version', not a version of three numbers." }
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "version=$version"
+
+      - name: Install the .NET SDK that global.json names
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}\dotnet
+        with:
+          dotnet-version: ${{ steps.sdk.outputs.version }}
+
+      - name: Show the build environment
+        run: |
+          "Runner image: $env:ImageOS $env:ImageVersion"
+          "Windows: $([Environment]::OSVersion.VersionString)"
+          "PowerShell: $($PSVersionTable.PSVersion)"
+          git --version
+          git config --show-origin --get-all core.autocrlf
+          "dotnet: $((Get-Command dotnet).Source)"
+          dotnet --version
+          dotnet --list-runtimes
+          if (Get-Command python -ErrorAction SilentlyContinue) { python --version }
+          exit 0
+
+      # scripts\package.ps1 runs the automated tests first (Release; fixtures only, no test asks a model), then
+      # publishes dist\yav.exe and writes dist\yav.exe.sha256. A test that hangs ends the tests after 15 minutes
+      # without a test beginning or ending, and is named (see ci.yml).
+      - name: Run the tests and build the package
+        timeout-minutes: 90
+        run: .\scripts\package.ps1 -HangSeconds 900
+
+      # No -Sandbox: Windows Sandbox does not exist on Windows Server.
+      - name: Check the package where there is no .NET, no Git and no agent
+        timeout-minutes: 20
+        run: .\scripts\verify-package.ps1
+
+      # It only reports: a problem in it does not hold the release up. The text of the release then leaves out what
+      # it could not report.
+      - name: Write the summary of the run
+        id: summary
+        if: always()
+        continue-on-error: true
+        run: |
+          $summary = [System.Collections.Generic.List[string]]::new()
+          $trx = 'artifacts\test-results\yav-tests.trx'
+          if (Test-Path -LiteralPath $trx) {
+            # The table of summarize-tests.ps1 goes into a file among the test results, which are kept with the run.
+            # docs\test-results.md is not written.
+            $table = 'artifacts\test-results\test-results.md'
+            .\scripts\summarize-tests.ps1 -Results $trx -Output $table
+            $summary.AddRange([string[]](Get-Content -LiteralPath $table))
+
+            [xml]$xml = Get-Content -LiteralPath $trx -Raw
+            $counters = $xml.TestRun.ResultSummary.Counters
+            $notRun = [int]$counters.total - [int]$counters.executed
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "tests=$($counters.passed) of $($counters.total) passed, $($counters.failed) failed, $notRun not run"
+
+            $results = @($xml.TestRun.Results.UnitTestResult)
+            foreach ($kind in @(@{ Outcome = 'Failed'; Title = 'Failed' }, @{ Outcome = 'NotExecuted'; Title = 'Not run' })) {
+              $listed = @($results | Where-Object { $_.outcome -eq $kind.Outcome })
+              if ($listed.Count -eq 0) { continue }
+              $summary.Add('')
+              $summary.Add("## $($kind.Title): $($listed.Count)")
+              $summary.Add('')
+              foreach ($result in ($listed | Select-Object -First 40)) {
+                $message = @(([string]$result.Output.ErrorInfo.Message) -split "`r?`n" | Where-Object { $_.Trim() })
+                $first = if ($message.Count -gt 0) { ': ' + $message[0].Trim().Replace('`', "'") } else { '' }
+                $summary.Add(('- `{0}`{1}' -f ([string]$result.testName).Replace('`', "'"), $first))
+              }
+              if ($listed.Count -gt 40) { $summary.Add("- and $($listed.Count - 40) more") }
+            }
+          }
+          else {
+            $summary.Add('# Test results')
+            $summary.Add('')
+            $summary.Add('The tests did not run to their end, so there are no results. The log of the step that runs them says why.')
+          }
+
+          if (Test-Path -LiteralPath dist\yav.exe.sha256) {
+            $hash = ((Get-Content -LiteralPath dist\yav.exe.sha256 -Raw).Trim() -split '\s+')[0]
+            $size = (Get-Item -LiteralPath dist\yav.exe).Length / 1MB
+            $summary.Add('')
+            $summary.Add('## Package')
+            $summary.Add('')
+            $summary.Add(('`dist\yav.exe`: {0:N1} MB, SHA-256 `{1}`. Not code-signed.' -f $size, $hash))
+          }
+
+          $report = 'artifacts\package-verification\isolated-environment.json'
+          if (Test-Path -LiteralPath $report) {
+            $checks = @((Get-Content -LiteralPath $report -Raw | ConvertFrom-Json).checks)
+            $passed = @($checks | Where-Object { $_.passed }).Count
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "checks=$passed of $($checks.Count)"
+            $summary.Add('')
+            $summary.Add("## The package where there is no .NET, no Git and no agent: $passed of $($checks.Count) checks passed")
+            $summary.Add('')
+            foreach ($check in $checks) {
+              $mark = if ($check.passed) { 'ok' } else { '**FAILED**' }
+              $detail = if (-not $check.passed -and $check.detail) { ': ' + (([string]$check.detail) -replace '\s+', ' ') } else { '' }
+              $summary.Add("- $mark $($check.name)$detail")
+            }
+          }
+
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "image=$("$env:ImageOS $env:ImageVersion".Trim())"
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary
+
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results
+          path: |
+            artifacts/test-results/
+            artifacts/measurements/
+            artifacts/package-verification/
+          if-no-files-found: warn
+          retention-days: 90
+          overwrite: true
+
+      # The documents are in dist next to yav.exe, so the artifact holds the four files side by side.
+      - name: Keep the package for the release
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package
+          path: |
+            dist/yav.exe
+            dist/yav.exe.sha256
+            dist/YAV-Shell-${{ steps.release.outputs.version }}-Documentation-and-User-Guide.docx
+            dist/YAV-Shell-Specification.txt
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
+
+      - name: Keep the text of the release
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-notes
+          path: ${{ steps.release.outputs.notes }}
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
+
+  attest:
+    name: Record where yav.exe was built
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    outputs:
+      url: ${{ steps.attest.outputs.attestation-url }}
+    steps:
+      # The download fails when the file is not the one the build job uploaded (its digest is compared).
+      - name: Get the package that the build job checked
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package
+          path: package
+
+      # Signed with GitHub's identity of this workflow run and written to the public transparency log of Sigstore.
+      - name: Attest the build provenance of yav.exe
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: package/yav.exe
+
+  publish:
+    name: Publish the GitHub Release
+    needs: [build, attest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.build.outputs.tag }}
+      VERSION: ${{ needs.build.outputs.version }}
+      COMMIT: ${{ needs.build.outputs.commit }}
+      TESTS: ${{ needs.build.outputs.tests }}
+      CHECKS: ${{ needs.build.outputs.checks }}
+      IMAGE: ${{ needs.build.outputs.image }}
+      ATTESTATION_URL: ${{ needs.attest.outputs.url }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Get the package that the build job checked
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package
+          path: package
+
+      - name: Get the text of the release
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-notes
+          path: notes
+
+      # The write token is given to this step only: the steps that download the package need none.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $program = Join-Path 'package' 'yav.exe'
+          $sidecar = Join-Path 'package' 'yav.exe.sha256'
+          $guide = Join-Path 'package' "YAV-Shell-$env:VERSION-Documentation-and-User-Guide.docx"
+          $specification = Join-Path 'package' 'YAV-Shell-Specification.txt'
+          $notes = Join-Path 'notes' "$env:VERSION.md"
+          foreach ($file in $program, $sidecar, $guide, $specification, $notes) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "$file is not among what the build job kept. Nothing was published." }
+            if ((Get-Item -LiteralPath $file).Length -eq 0) { throw "$file is empty. Nothing was published." }
+          }
+
+          # yav.exe is the program the build job checked: its SHA-256 is the one that job wrote.
+          $expected = ((Get-Content -LiteralPath $sidecar -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
+          $actual = (Get-FileHash -LiteralPath $program -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -cne $expected) { throw "yav.exe has the SHA-256 $actual, but yav.exe.sha256 says $expected. Nothing was published." }
+
+          # The tag still names the commit that yav.exe was built from. A tag moved since then would publish the
+          # program of one commit under the name of another.
+          $answer = gh api "repos/$env:GH_REPO/git/ref/tags/$env:TAG"
+          if ($LASTEXITCODE -ne 0) { throw "The tag $env:TAG was not found in $env:GH_REPO. Nothing was published." }
+          $target = ($answer -join "`n" | ConvertFrom-Json).object
+          for ($depth = 0; $target.type -eq 'tag' -and $depth -lt 5; $depth++) {
+            $answer = gh api "repos/$env:GH_REPO/git/tags/$($target.sha)"
+            if ($LASTEXITCODE -ne 0) { throw "The tag object $($target.sha) could not be read. Nothing was published." }
+            $target = ($answer -join "`n" | ConvertFrom-Json).object
+          }
+          if ($target.type -ne 'commit' -or $target.sha -ne $env:COMMIT) {
+            throw "The tag $env:TAG names the $($target.type) $($target.sha) now, not the commit $env:COMMIT that yav.exe was built from. Nothing was published."
+          }
+
+          # An existing release is never replaced or changed, a draft neither.
+          $answer = gh release list --limit 1000 --json tagName,isDraft
+          if ($LASTEXITCODE -ne 0) { throw 'The releases of the repository could not be listed. Nothing was published.' }
+          $existing = @($answer -join "`n" | ConvertFrom-Json | Where-Object { $_.tagName -ceq $env:TAG })
+          if ($existing.Count -gt 0) {
+            $draft = if ($existing[0].isDraft) { ' (a draft)' } else { '' }
+            throw "There is a release for $env:TAG already$draft. It was left as it is, and nothing was published."
+          }
+
+          # The text of the release: the notes of the version, and what this run built and verified.
+          $runner = if ([string]::IsNullOrWhiteSpace($env:IMAGE)) { 'a GitHub-hosted Windows Server 2025 runner' } else { "a GitHub-hosted Windows Server 2025 runner (image $env:IMAGE)" }
+          $build = [System.Collections.Generic.List[string]]::new()
+          $build.AddRange([string[]]@('', '## This build', ''))
+          $build.Add("Built from the commit $env:COMMIT, which the tag $env:TAG names, by [the release workflow]($env:RUN_URL) on $runner.")
+          $build.Add('')
+          if ($env:TESTS) { $build.Add("- The automated tests, with the scripted stand-in for the agents: $env:TESTS.") }
+          if ($env:CHECKS) { $build.Add("- The check of the package where there is no .NET, no Git and no agent: $env:CHECKS passed.") }
+          $build.Add(('- `yav.exe`: SHA-256 `{0}`, also in `yav.exe.sha256`. Not code-signed.' -f $actual))
+          if ($env:ATTESTATION_URL) { $build.Add("- Where yav.exe was built, as GitHub recorded it: $env:ATTESTATION_URL") }
+          # The documents are the files of the tagged commit, copied under names without spaces.
+          $build.Add(('- `{0}`: the documentation and user guide, in Word; `docs/YAV Shell - Documentation and User Guide.docx` of the commit. SHA-256 `{1}`.' -f (Split-Path -Leaf $guide), (Get-FileHash -LiteralPath $guide -Algorithm SHA256).Hash.ToLowerInvariant()))
+          $build.Add(('- `{0}`: the specification YAV Shell was built from, as the file at the root of the repository holds it. SHA-256 `{1}`.' -f (Split-Path -Leaf $specification), (Get-FileHash -LiteralPath $specification -Algorithm SHA256).Hash.ToLowerInvariant()))
+          $build.AddRange([string[]]@('', 'To check a download with the GitHub CLI:', '', '```powershell', "gh attestation verify yav.exe --repo $env:GH_REPO --signer-workflow $env:GH_REPO/.github/workflows/release.yml --source-ref refs/tags/$env:TAG --deny-self-hosted-runners", '```'))
+          $body = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          $text = (Get-Content -LiteralPath $notes -Raw).TrimEnd() + "`n" + ($build -join "`n") + "`n"
+          [System.IO.File]::WriteAllText($body, $text, [System.Text.UTF8Encoding]::new($false))
+
+          # --verify-tag: the release is made for the tag that exists; gh never creates one. gh uploads the files to a
+          # draft and publishes it after the last one, so a release is never seen without them.
+          gh release create $env:TAG $program $sidecar $guide $specification --verify-tag --title "YAV Shell $env:VERSION" --notes-file $body
+          if ($LASTEXITCODE -ne 0) { throw "gh release create ended with exit code $LASTEXITCODE." }
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value "Published: $env:GITHUB_SERVER_URL/$env:GH_REPO/releases/tag/$env:TAG"

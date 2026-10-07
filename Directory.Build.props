@@ -15,6 +15,15 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
+  <!--
+    The program is published as one file. The single-file analyzer runs in every build of it, not only when it is
+    published: what does not work in one file shows up while developing, and publishing does not change the
+    packages.lock.json files (it would add the package the analyzer comes with, and the next build take it out again).
+  -->
+  <PropertyGroup Condition="$(MSBuildProjectDirectory.Contains('\src\'))">
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+  </PropertyGroup>
+
   <!-- All build output goes to one folder that is excluded from Dropbox sync (see scripts/build.ps1). -->
   <PropertyGroup>
     <UseArtifactsOutput>true</UseArtifactsOutput>
@@ -32,10 +41,10 @@
     <Product>YAV Shell</Product>
     <Company>YAV</Company>
     <Copyright>Copyright (c) 2026 Yavinesh Rajagopal. All rights reserved.</Copyright>
-    <Version>0.1.1</Version>
-    <AssemblyVersion>0.1.1.0</AssemblyVersion>
-    <FileVersion>0.1.1.0</FileVersion>
-    <InformationalVersion>0.1.1</InformationalVersion>
+    <Version>0.2.0</Version>
+    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+    <FileVersion>0.2.0.0</FileVersion>
+    <InformationalVersion>0.2.0</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 

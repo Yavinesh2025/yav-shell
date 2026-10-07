@@ -106,8 +106,15 @@ public sealed class YavProcess : IDisposable
     }
 
     /// <summary>Starts yav.exe with its output redirected, gives it the input, and waits until it has ended.</summary>
+    /// <param name="environment">Variables to set for yav.exe besides its data directory; null removes one.</param>
     public async Task<YavResult> RunAsync(
-        string[] arguments, string? input = null, string? workingDirectory = null, int seconds = 120, Action<Process>? whileRunning = null, string? executable = null)
+        string[] arguments,
+        string? input = null,
+        string? workingDirectory = null,
+        int seconds = 120,
+        Action<Process>? whileRunning = null,
+        string? executable = null,
+        IReadOnlyDictionary<string, string?>? environment = null)
     {
         var start = new ProcessStartInfo(executable ?? Executable)
         {
@@ -128,6 +135,17 @@ public sealed class YavProcess : IDisposable
 
         start.Environment[YavPaths.HomeVariable] = Paths.Home;
         start.Environment.Remove("NO_COLOR");
+        foreach (var (name, value) in environment ?? new Dictionary<string, string?>())
+        {
+            if (value is null)
+            {
+                start.Environment.Remove(name);
+            }
+            else
+            {
+                start.Environment[name] = value;
+            }
+        }
 
         var watch = Stopwatch.StartNew();
         using var process = Process.Start(start)!;

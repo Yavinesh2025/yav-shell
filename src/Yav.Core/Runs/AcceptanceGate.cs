@@ -273,7 +273,8 @@ public static class AcceptanceGate
                 issues.Add(new AcceptanceIssue(
                     AcceptanceIssueKind.GatesNotConfigured,
                     "No trusted validation gate is configured for this project, so required checks cannot be shown to pass. "
-                    + "Configure gates with /test, or explicitly allow review-only acceptance with /quality gates optional.",
+                    + "A request typed in the shell asks whether to approve the checks YAV finds or to accept the review alone for "
+                    + "this project. As commands: /test detect, or /quality gates optional for every project.",
                     IssueResolution.UserDecision));
             }
 

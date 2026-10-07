@@ -82,6 +82,27 @@ public static class DoctorChecks
         return new DoctorReport(checks, services.Clock.GetUtcNow());
     }
 
+    /// <summary>
+    /// What the doctor says about the Windows it runs on. The build alone does not tell Windows 11 from Windows
+    /// Server: Windows Server 2025 has the build 26100, as Windows 11 24H2 has.
+    /// </summary>
+    internal static DoctorCheck WindowsVersion(int build, bool server)
+    {
+        if (server)
+        {
+            return new DoctorCheck(
+                "System", "Windows", CheckStatus.Info,
+                $"Windows Server (build {build}). YAV is built and tested for Windows 11 x64; Windows Server is not what it is made for.");
+        }
+
+        return build >= Windows11Build
+            ? new DoctorCheck("System", "Windows", CheckStatus.Ok, $"Windows 11 (build {build})")
+            : new DoctorCheck(
+                "System", "Windows", CheckStatus.Warning,
+                $"Windows build {build}. YAV is built and tested for Windows 11 x64; Windows 10 is not assumed to work.",
+                "Use Windows 11, or treat problems on this system as untested territory.");
+    }
+
     private static void Platform(List<DoctorCheck> checks, ConsoleCapabilities? console)
     {
         checks.Add(new DoctorCheck("System", "YAV Shell", CheckStatus.Ok, $"version {AppServices.Version}, {RuntimeInformation.ProcessArchitecture}, {AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar)}"));
@@ -93,18 +114,7 @@ public static class DoctorChecks
             "System", "Runtime", CheckStatus.Ok,
             $"{RuntimeInformation.FrameworkDescription} in {runtime} ({(bundled ? "part of this installation" : "installed separately; a package of YAV brings its own")})"));
 
-        var os = Environment.OSVersion.Version;
-        if (os.Build >= Windows11Build)
-        {
-            checks.Add(new DoctorCheck("System", "Windows", CheckStatus.Ok, $"Windows 11 (build {os.Build})"));
-        }
-        else
-        {
-            checks.Add(new DoctorCheck(
-                "System", "Windows", CheckStatus.Warning,
-                $"Windows build {os.Build}. YAV is built and tested for Windows 11 x64; Windows 10 is not assumed to work.",
-                "Use Windows 11, or treat problems on this system as untested territory."));
-        }
+        checks.Add(WindowsVersion(Environment.OSVersion.Version.Build, Yav.Platform.WindowsEdition.IsServer() == true));
 
         if (RuntimeInformation.ProcessArchitecture != Architecture.X64)
         {

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Yav.Console.Cli;
 using Yav.Console.Composition;
 using Yav.Console.Input;
+using Yav.Console.Install;
 using Yav.Console.Output;
 using Yav.Console.Rendering;
 using Yav.Console.Shell;
@@ -41,6 +42,48 @@ switch (options.Mode)
 }
 
 var host = ConsoleHost.Initialize();
+if (options.Mode is CliMode.Install or CliMode.Uninstall)
+{
+    // The first Control+C stops between two files, so that what was written is listed and can be removed or
+    // completed; a second one ends the process.
+    using var cancel = new CancellationTokenSource();
+    System.Console.CancelKeyPress += (_, e) =>
+    {
+        if (!cancel.IsCancellationRequested)
+        {
+            e.Cancel = true;
+            cancel.Cancel();
+        }
+    };
+
+    // Before the data directory is opened: a removal that takes the data with it must find it closed.
+    try
+    {
+        return options.Mode == CliMode.Install
+            ? await InstallCommand.InstallAsync(options, host, cancel.Token)
+            : await InstallCommand.UninstallAsync(options, host, cancel.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        System.Console.Error.WriteLine(options.Mode == CliMode.Install
+            ? "yav: stopped before the installation was complete. 'yav install' completes it; 'yav uninstall' removes what was written."
+            : "yav: stopped before the removal was complete. 'yav uninstall' removes what is left.");
+        KeepOwnWindowOpen();
+        return ExitCodes.Failed;
+    }
+    catch (Exception ex) when (ex is not OutOfMemoryException)
+    {
+        // Whatever went wrong is shown, also in a window of its own that would otherwise close at once.
+        System.Console.Error.WriteLine($"yav: {(options.Mode == CliMode.Install ? "the installation" : "the removal")} failed: {ex.GetType().Name}: {ex.Message}");
+        KeepOwnWindowOpen();
+        return ExitCodes.Failed;
+    }
+    finally
+    {
+        host.RestoreOriginal();
+    }
+}
+
 AppServices services;
 try
 {
@@ -49,18 +92,36 @@ try
 catch (DatabaseVersionException ex)
 {
     System.Console.Error.WriteLine("yav: " + ex.Message);
+    KeepOwnWindowOpen();
     return ExitCodes.Failed;
 }
 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
 {
     System.Console.Error.WriteLine($"yav: the data directory could not be opened: {ex.Message}");
     System.Console.Error.WriteLine($"     Set {YavPaths.HomeVariable} to a directory you can write to.");
+    KeepOwnWindowOpen();
     return ExitCodes.Failed;
 }
 
 await using (services)
 {
     using var stop = new CancellationTokenSource();
+
+    // 'yav' alone, from a copy that is not installed: it offers to install itself first.
+    if (options.Mode == CliMode.Interactive && options.ProjectPath is null)
+    {
+        var offered = Stopwatch.GetTimestamp();
+        if (await InstallOffer.OfferAsync(services, host, stop.Token) is { } ended)
+        {
+            host.RestoreOriginal();
+            return ended;
+        }
+
+        // The time the offer waited for an answer, and installed, is not part of starting the shell: the measured
+        // start of the console begins again where the offer ended.
+        processStarted += Stopwatch.GetTimestamp() - offered;
+    }
+
     if (options.Mode is CliMode.Run or CliMode.Doctor)
     {
         var interrupts = 0;
@@ -127,10 +188,27 @@ await using (services)
 
     try
     {
-        return await shell.RunAsync(options.ProjectPath, stop.Token);
+        // Opened from Explorer, the Start menu or the Run dialog, the current directory is where yav.exe lies, not a
+        // project the user chose: the shell starts without one, and the first request asks for it.
+        var startedOutsideAShell = ConsoleWindow.IsOwn(ConsoleHost.ProcessesSharingConsole(), ConsoleWindow.Exists);
+        return await shell.RunAsync(options.ProjectPath, stop.Token, startedOutsideAShell);
     }
     finally
     {
         host.RestoreOriginal();
     }
+}
+
+// A window Windows made for yav alone closes as soon as yav ends. What went wrong before anything else could be shown
+// stays readable there until Enter is pressed.
+static void KeepOwnWindowOpen()
+{
+    if (System.Console.IsInputRedirected || !ConsoleWindow.IsOwn(ConsoleHost.ProcessesSharingConsole(), ConsoleWindow.Exists))
+    {
+        return;
+    }
+
+    System.Console.Error.WriteLine();
+    System.Console.Error.Write("Press Enter to close this window.");
+    _ = System.Console.ReadLine();
 }

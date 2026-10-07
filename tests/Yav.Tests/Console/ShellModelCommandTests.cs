@@ -231,9 +231,13 @@ public class ShellModelCommandTests
             "ultra Maximum reasoning with automatic task delegation");
 
         shell.Enter(Task);
+
+        // The value is asked for; without an answer none is taken and nothing is sent.
+        await shell.AnswerWhenAskedAsync("Effort for Model A - type one of the listed values, then Enter:", string.Empty);
         await shell.WaitForRunToEndAsync();
 
-        shell.AssertShows("[BLOCKED]", "effort-unranked");
+        shell.AssertShows("[BLOCKED]", "effort-unranked", "The request was not sent.");
+        Assert.True(Stored(shell).ModelA!.WantsMaximum);
         Assert.Empty(shell.Agents.CodexRequests("thread/start"));
         Assert.Empty(shell.Agents.CodexRequests("turn/start"));
 
@@ -257,7 +261,7 @@ public class ShellModelCommandTests
             "Quality Lock: ON: models, effort, review and billing route are held to what you chose",
             "Policy: strict: a setting the provider did not confirm blocks the run",
             "Review by Model B: required, in its own conversation, read-only",
-            "Required checks: required: a project without approved checks does not run",
+            "Required checks: required: a project with no approved check that is required does not run",
             "Repair cycles: 2 after the first candidate",
             "Failures that were already there: your decision: waive them, or fix them first",
             "It cannot make a model's answer correct or the same twice.");
@@ -427,14 +431,19 @@ public class ShellModelCommandTests
         await using var shell = await StartedAsync(new ShellOptions { AcknowledgeRoutes = false }, s => s.WithPassingRun());
 
         shell.Enter(Task);
+
+        // The route is shown and asked about at once. An empty answer acknowledges nothing.
+        await shell.AnswerWhenAskedAsync("Use 'ChatGPT plan (pro)' for runs of YAV, billed as stated above?", string.Empty);
         await shell.WaitForRunToEndAsync();
 
-        shell.AssertShows("[BLOCKED]", "route-unacknowledged: Review and acknowledge it with /login openai.");
+        shell.AssertShows("[BLOCKED]", "route-unacknowledged: Review and acknowledge it with /login openai.", "Not confirmed. Nothing was changed.");
         Assert.Empty(shell.Agents.CodexRequests("thread/start"));
 
+        // Only what /login itself shows counts here: the refusal above showed the same route a moment ago.
+        var before = shell.Terminal.Lines.Count;
         shell.Enter("/login openai");
-        await shell.WaitForAsync("Type yes to confirm:");
-        shell.AssertShows("For this integration: needs your acknowledgement", "Use 'ChatGPT plan (pro)' for runs of YAV, billed as stated above?");
+        await shell.WaitForAskingAsync("Use 'ChatGPT plan (pro)' for runs of YAV, billed as stated above?", occurrence: 2);
+        Assert.Contains("For this integration: needs your acknowledgement", ShellHarness.Flatten(string.Join(" ", shell.Terminal.Lines.Skip(before))), StringComparison.Ordinal);
         await shell.EnterAndWaitAsync("yes");
 
         shell.AssertShows("Acknowledged. It is asked again when the account route changes.");
@@ -446,10 +455,15 @@ public class ShellModelCommandTests
     [Fact]
     public async Task An_acknowledgement_is_for_one_route_and_another_route_is_asked_for_again()
     {
-        await using var shell = await StartedAsync(arrange: s => s.WithPassingRun());
-        shell.Agents.Codex(c => c["account"] = new JsonObject { ["type"] = "apiKey" });
+        // Arranged before the shell starts: the agents are read once at the start, and that reading is kept.
+        await using var shell = await StartedAsync(arrange: s =>
+        {
+            s.WithPassingRun();
+            s.Agents.Codex(c => c["account"] = new JsonObject { ["type"] = "apiKey" });
+        });
 
         shell.Enter(Task);
+        await shell.AnswerWhenAskedAsync("Use 'OpenAI API key' for runs of YAV, billed as stated above?", "no");
         await shell.WaitForRunToEndAsync();
 
         shell.AssertShows("[BLOCKED]", "the account route 'OpenAI API key' has not been acknowledged", "Usage is billed per token to the API account");

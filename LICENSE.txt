@@ -1,10 +1,33 @@
 YAV Shell
 Copyright (c) 2026 Yavinesh Rajagopal. All rights reserved.
 
-YAV Shell, including its source code, documentation, templates, tests,
-benchmark and packages, is proprietary. No part of it may be copied,
-modified, distributed, sublicensed or used without the prior written
-permission of the copyright holder.
+YAV Shell is proprietary software that is free to use. It is not open source.
+
+PERMISSION TO USE
+Anyone may download, install and use YAV Shell - the program yav.exe as the
+copyright holder publishes it, with its documentation - free of charge, for
+personal, educational and commercial work, on any number of computers.
+
+The source code is published so that it can be read and reviewed. Reading it,
+and building it to check that a published yav.exe matches it, is permitted.
+
+NOT PERMITTED WITHOUT THE PRIOR WRITTEN PERMISSION OF THE COPYRIGHT HOLDER
+- copying, modifying or translating YAV Shell or any part of it - its source
+  code, documentation, templates, tests, benchmark or packages - or making
+  works based on it, except as needed to read and build it as stated above;
+- distributing, publishing, sublicensing, renting or selling YAV Shell or any
+  part of it, or otherwise making it available to others, other than by
+  pointing them to where the copyright holder publishes it;
+- removing or changing this notice or any copyright notice.
+
+NO WARRANTY
+YAV Shell is provided "as is", without warranty of any kind, express or
+implied, including the warranties of merchantability, fitness for a particular
+purpose and non-infringement. In no event shall the copyright holder be liable
+for any claim, damages or other liability arising from the use of YAV Shell,
+including changes that it, or the agent programs it starts, make to projects.
+You decide what is applied to your projects, and you use the agent programs and
+the accounts they sign in to under their own terms.
 
 Components by others that are distributed with YAV Shell remain under their
 own licenses, which THIRD-PARTY-NOTICES.md lists. Nothing in this notice

@@ -9,6 +9,8 @@ dist/
 .idea/
 *.user
 *.suo
+# Office keeps an owner file (~$name) beside a document while it is open
+~$*
 
 # Test and benchmark output
 TestResults/
@@ -16,3 +18,5 @@ bench/results/*.local.json
 
 # Local tooling state
 .remember/
+# Git worktrees that Claude Code makes for its agents. Only that folder: settings a project keeps in .claude/ stay committable.
+.claude/worktrees/

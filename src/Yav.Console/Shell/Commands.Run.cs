@@ -567,13 +567,14 @@ public sealed partial class InteractiveShell
         _ui.Pairs([.. pairs]);
     }
 
-    private async Task DetectGatesAsync(string project, ProjectConfigurationState state, CancellationToken cancellationToken)
+    /// <summary>Proposes checks from what the project contains and approves them when the user confirms. True when they were approved.</summary>
+    private async Task<bool> DetectGatesAsync(string project, ProjectConfigurationState state, CancellationToken cancellationToken)
     {
         var proposals = _services.Validation.Detect(project);
         if (proposals.Count == 0)
         {
             _ui.Say($"Nothing in the project's root tells which checks it has. Write them into {_services.Validation.ConfigurationFileName}; docs\\user-guide.md shows the format.");
-            return;
+            return false;
         }
 
         _ui.Say("Proposed from what the project contains. Nothing runs until you approve it:", Tone.Accent);
@@ -585,7 +586,7 @@ public sealed partial class InteractiveShell
 
         if (!await ConfirmAsync("Approve these commands as the required checks of this project?", cancellationToken).ConfigureAwait(false))
         {
-            return;
+            return false;
         }
 
         var configuration = state.Effective with { Gates = proposals.Select(p => p.Gate).ToList() };
@@ -601,14 +602,17 @@ public sealed partial class InteractiveShell
         {
             _ui.Say($"Approved. {file} was left as it is; /test trust compares it with what is approved.");
         }
+
+        return true;
     }
 
-    private async Task TrustGatesAsync(string project, ProjectConfigurationState state, CancellationToken cancellationToken)
+    /// <summary>Shows the project's configuration the user has not approved, and approves it when they confirm. True when it was approved.</summary>
+    private async Task<bool> TrustGatesAsync(string project, ProjectConfigurationState state, CancellationToken cancellationToken)
     {
         if (state.Trust == ConfigurationTrust.Invalid)
         {
             _ui.Warn($"{state.FilePath} cannot be used: {string.Join(" ", state.Errors)}");
-            return;
+            return false;
         }
 
         if (state.Pending is not { } pending)
@@ -616,7 +620,7 @@ public sealed partial class InteractiveShell
             _ui.Say(state.Trust == ConfigurationTrust.Trusted
                 ? "The checks of this project are approved and the file has not changed since."
                 : $"This project has no {_services.Validation.ConfigurationFileName}. /test detect proposes checks.");
-            return;
+            return false;
         }
 
         _ui.Say($"{state.FilePath} says:", Tone.Accent);
@@ -630,11 +634,12 @@ public sealed partial class InteractiveShell
         _ui.Warn("These commands run on your machine with your rights whenever a candidate is checked. Approve them only when you know what they do.");
         if (!await ConfirmAsync("Approve this configuration?", cancellationToken).ConfigureAwait(false))
         {
-            return;
+            return false;
         }
 
         _services.Validation.TrustConfiguration(project, pending, _services.Validation.Serialize(pending));
         _ui.Success("Approved. It applies from the next run; results of earlier checks are stale now, because the configuration they were produced with has changed.");
+        return true;
     }
 
     private async Task RunGatesLocallyAsync(string project, ProjectConfigurationState state, IReadOnlyList<GateDefinition> gates, CancellationToken cancellationToken)

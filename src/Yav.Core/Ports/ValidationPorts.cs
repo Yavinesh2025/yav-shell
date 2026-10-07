@@ -93,4 +93,24 @@ public interface IProjectTrustStore
     bool AreGapsAcknowledged(string projectPath, string gapsFingerprint);
 
     void AcknowledgeGaps(string projectPath, string gapsFingerprint, string statement);
+
+    /// <summary>
+    /// True when the user accepted for this project that a candidate is accepted on the review alone. It is kept as
+    /// given, whatever checks the project has. A run applies it only while the approved configuration requires no
+    /// check, so a required check that is approved later takes precedence, and the acceptance applies again once no
+    /// check is required any more. An approved check that is optional does not set it aside, because a run does not
+    /// run optional checks.
+    /// </summary>
+    bool IsReviewOnlyAccepted(string projectPath);
+
+    void AcceptReviewOnly(string projectPath, string statement);
+
+    /// <summary>Withdraws the user's consent that a candidate of this project is accepted on the review alone. False when there was none.</summary>
+    bool WithdrawReviewOnly(string projectPath);
+
+    /// <summary>
+    /// When the acceptance of the review alone was last withdrawn for this project; null when it never was. A candidate
+    /// that a run accepted on the review alone is not applied once the acceptance was withdrawn after the run started.
+    /// </summary>
+    DateTimeOffset? ReviewOnlyWithdrawnAt(string projectPath);
 }

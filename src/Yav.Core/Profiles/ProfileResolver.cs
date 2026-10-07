@@ -136,7 +136,8 @@ public static class ProfileResolver
                 ProblemSeverity.Blocking,
                 "gates-missing",
                 "No trusted validation gate is configured for this project, so a candidate could never be shown to pass required checks.",
-                "Configure gates with /test detect, or allow review-only acceptance with /quality gates optional."));
+                "A request entered in the shell (yav) asks you whether to approve the checks YAV finds or to accept the review alone for this project. "
+                + "As commands: /test detect, or /quality gates optional for every project."));
         }
 
         if (request.Policy.Adaptive)

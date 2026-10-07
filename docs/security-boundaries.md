@@ -1,7 +1,7 @@
 # Security boundaries
 
 This document states what YAV Shell protects, by which mechanism, and what it does **not** protect.
-It describes version 0.1.1. Where a boundary belongs to a provider's agent, YAV reports what that agent
+It describes version 0.2.0. Where a boundary belongs to a provider's agent, YAV reports what that agent
 says is in effect; it never invents a guarantee.
 
 ## Summary
@@ -10,6 +10,7 @@ says is in effect; it never invents a guarantee.
 | --- | --- | --- |
 | Your project is not written during a run | The agent works in an isolated worktree or protected copy outside the project | Not a security sandbox. A Git worktree shares the repository's metadata |
 | Only reviewed and tested content is applied | The candidate is frozen as content (manifest + SHA-256 + stored bytes); apply writes the stored bytes | Not a guarantee that reviewed code is free of defects |
+| A project you accepted for review only | You grant it for one project with a typed `yes`; it applies only while the project has no approved required check and its approved checks can be read, and a run says when it applies; see [Trust](#trust) | Weaker than checks: a pass then means that Model B reported no blocking finding. No check of yours ran |
 | Model B cannot change the candidate | Read-only sandbox (Codex) or removal of every tool that writes or runs code (Claude); verified from what the agent reports; changes are detected by fingerprint and reverted | For Claude this is tool restriction, not an operating-system sandbox |
 | Model A's file access | The provider's own sandbox and approval policy | YAV adds no sandbox of its own. With Claude as Model A there is no operating-system sandbox |
 | Child processes do not outlive YAV's work | Windows Job Objects with kill-on-close; every child is in its job before it runs | Job Objects group processes. They do not restrict file or network access. **A program from the Microsoft Store that an agent or a check starts leaves the job**; see [Process handling](#process-handling) |
@@ -20,6 +21,7 @@ says is in effect; it never invents a guarantee.
 | Access is granted only on purpose | An answer is a letter and Enter; some requests need the word `allow`; answers begun too early, typed ahead or pasted grant nothing | Not a protection against a person who allows without reading |
 | Secrets | Windows Credential Manager; passed to one child process through its environment | An environment variable is inherited by whatever that agent starts |
 | `/shell` and `/exec` | None: they run with your normal user rights | Not covered by any agent sandbox |
+| Installing changes only your account | Files in the installation folder, listed with their SHA-256 in `yav-install.json`; the PATH and the "Installed apps" entry in your part of the registry (`HKCU`); see [Installation](#installation) | Not code-signed: nothing proves who built `yav.exe`. Compare it with the `yav.exe.sha256` of the build |
 
 ## The isolated workspace
 
@@ -33,7 +35,8 @@ says is in effect; it never invents a guarantee.
   unless they are also listed under `allowSecrets`.
 * When the isolated workspace would not be an equivalent reproduction of the project (ignored runtime
   files, submodules, Git LFS without `git-lfs`, symbolic links, paths that differ only by letter case), the
-  run does not start until you accept exactly those differences.
+  run does not start until you accept exactly those differences. The shell asks for that when a request
+  needs it; `yav run` stays blocked.
 * **A worktree is not a sandbox.** It shares branches, tags, the stash and the object store with your
   repository. YAV records the repository's references before a run and compares them afterwards; a run whose
   agent changed them is not offered for application. YAV itself never runs `git reset --hard`,
@@ -153,6 +156,23 @@ write. YAV does not set up, weaken or bypass Codex's sandbox.
   The file is always a protected path, so a candidate that changes it needs your explicit approval.
 * Repository content and tool output are passed to the models between `<reference-data>` delimiters.
   Text inside that looks like a delimiter is neutralized first.
+* **Review-only acceptance** is a weaker acceptance that you grant for one project. While required checks
+  are on, which is the default, a project without an approved required check does not run. When YAV found
+  no check it could propose, you declined what it proposed, or what you approved requires none, the shell
+  offers to accept for this project that a candidate is accepted on Model B's review alone; that takes a
+  typed `yes`, and it is not offered while the approved checks cannot be read. It applies only while
+  the project has no approved required check: approve one, and checks are required again (an optional
+  approved check does not set it aside, because a run does not run optional checks). When the approved
+  checks cannot be read - a damaged stored approval, or a `yav.project.json` that cannot be used - it does
+  not stand in for them: the run is blocked (`review-only-unknown`). A run in which it applies says so, and
+  its profile records that no check was required. A pass then means that Model B reported no blocking
+  finding, and nothing else: no check of yours ran. `/quality gates required` withdraws it for the selected
+  project; a candidate that was accepted on the review alone is then not applied by `/apply` either, when
+  the withdrawal came after its run started.
+* **The questions of a first request** ask for what the commands ask for - the models, an account route,
+  the checks of a project, the differences of a workspace, review-only acceptance - with the same typed
+  `yes` for every grant, and record the same answers. They are asked only where someone can answer:
+  `yav run` and input from a pipe or a file are blocked as before.
 
 ## Terminal output
 
@@ -192,6 +212,92 @@ request stands in quotes wherever YAV names it.
 * The line you are typing belongs to you: what you paste there is shown as you pasted it, with line
   breaks shown as a mark.
 
+## Installation
+
+`yav install`, and the offer a `yav.exe` that is not installed makes when it starts, work for the current
+user only and never ask for administrator rights. They change:
+
+* **Files in the installation folder**, by default `%LOCALAPPDATA%\Programs\YavShell`: `yav.exe`, the
+  license, the third-party notices, the documentation, the examples, and `yav-install.json`, which lists
+  each of these files with its size and SHA-256. They are written as bytes from the program that runs, so
+  the installed copy does not carry the mark Windows gives a download.
+* **`HKCU\Environment`, value `Path`**: the folder is added at the end, unless a part of the value names it
+  already. The rest of the text, its `%VARIABLES%` and the kind of the value stay as they were.
+  `--no-path` leaves the value alone. Windows is then told that the environment changed
+  (`WM_SETTINGCHANGE`): Explorer, and other programs that handle the message, hand the new PATH to what
+  they start from then on. A console that is open keeps the PATH it started with.
+* **`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\YavShell`**: the entry under "Installed
+  apps", with `"<folder>\yav.exe" uninstall` as the command that removes it. `--no-register` leaves it out.
+
+Refused before anything is written: the root of a drive; a folder in which the path of `yav.exe` would
+have 260 characters or more, from which Windows would not start it; and, unless `--no-path` is given, a
+folder whose name holds `;`, which would split it into two entries of the PATH, and a PATH that is not
+stored as text. The PATH is read again right before it is written, so that a change another program made
+meanwhile stays.
+
+They never touch:
+
+* **The data directory** (`%LOCALAPPDATA%\YavShell`, or the one `YAV_HOME` names): installing, replacing
+  and removing leave its settings, history, workspaces and database as they are. `yav` started without
+  arguments opens the data directory before the offer asks, and creates it on a first start, as every
+  start of YAV does; a "no" to the offer in a console that was already open is kept there
+  (`installOfferDeclined` in `settings.json`). Only `yav uninstall --remove-data` removes it, after you
+  typed `yes`; where nobody can be asked, it removes nothing, the program neither. The program is never
+  installed into the data directory or into a directory that holds it.
+* The PATH of the machine, `HKEY_LOCAL_MACHINE`, `Program Files`, services, scheduled tasks, programs that
+  start with Windows, file associations and the Start menu (a Start menu entry that 0.1.1 made stays).
+* Files in the installation folder that the installation did not put there. A folder that exists, is not
+  empty and holds neither a `yav-install.json` nor the `package-manifest.json` of 0.1.1 is not used at all;
+  what an installation that was interrupted before its first list leaves (`yav-install.json.partial`) does
+  not count.
+
+**`--remove-data`** has to tell a data directory of YAV from any other, because `YAV_HOME` can name any
+directory. It removes one only when it holds `yav.db` and, at its top level, nothing YAV does not create:
+the files `yav.db`, `yav.db-wal`, `yav.db-shm`, `yav.db-journal`, `settings.json`, `settings.json.tmp-*`,
+`settings.unreadable-*.json` and `history.txt*`, and the folders `logs`, `workspaces`, `blobs`, `exports`
+and `schemas`; hidden and system entries count. The root of a drive and the folders of Windows and of your
+account (your profile, Desktop, Documents, `%LOCALAPPDATA%`, `%APPDATA%`, `ProgramData`, both Program Files
+folders, the Windows and system folders, the programs folder of your Start menu) are never taken for one,
+and neither is a directory whose `yav.db` another process has open, as another YAV Shell would. All of this
+is checked before you are asked; when it does not hold, nothing is removed, the program neither. It is
+checked again just before anything is deleted; `yav.db` is then held open alone while the rest goes, and it
+and `settings.json` are deleted last, so that a removal that stops part-way leaves a directory that is still
+recognised. A link inside it is removed as a link; what it leads to is not entered. The API key YAV kept in
+the Credential Manager for that directory is removed on its own and reported on its own, also when the
+directory itself is gone already.
+
+Installing and removing are refused while another YAV Shell process runs from that folder; the program that
+installs or removes itself does not count. `yav uninstall` removes exactly the files `yav-install.json` lists,
+the PATH entry for that folder, and the "Installed apps" entry when it names that folder, and deletes what an
+interrupted write left beside them (`<file>.partial-<8 hex digits>`). A folder that still holds files of yours
+is kept. A `yav.exe` built from the source tree, which the tests start, removes only an installation named
+with `--dir`, so that it cannot reach the installation of your account.
+
+A running program cannot delete its own file: when the removal is done by the installed program, as when
+"Installed apps" starts it, everything else is removed first. The program and its list stay until it has
+ended; the list then names only the program and holds a random text that ties it to this removal. As the
+process ends - also when its window is closed with the X button - a hidden `cmd.exe` is started from the
+system folder, with the system folder as its working directory, `/d` (no AutoRun commands) and `/v:off` (no
+delayed expansion). It waits a few seconds, and only while the list still holds that text it deletes the
+program (once more after ten seconds when the program is still in use), then the list only when the program
+is gone, and then the folder when it is empty (`rmdir` without `/s`). `PING` and `FINDSTR`, which it uses to
+wait and to read the list, are named by their full paths in the system folder, so that a program of the same
+name elsewhere is never started. A newer installation made into the same folder in the meantime writes a list
+without that text and is left alone. The command is given only paths without `%`, `!` and `"`, which CMD
+would interpret; for any other path you are told to delete the folder yourself. This step is best effort and
+waits a fixed time, not for the process.
+
+**The offer is the one question where Enter alone means yes.** Installing changes only your own account, it
+is what running a downloaded `yav.exe` is for, and `yav uninstall` takes it back. It is asked only with a
+console for input and output that somebody sees: never from a pipe, and not in a console window that was
+started hidden. Every grant of access, consent or acknowledgement still needs a typed `yes`.
+
+**Nothing is code-signed.** Windows cannot tell you who built `yav.exe`, and it may warn when a downloaded copy
+is started for the first time; where Smart App Control is on, Windows does not start an unsigned program at all,
+whichever way it is started. `dist\yav.exe.sha256` records the hash of the file that was built; compare it
+with the file you received. The hashes in `yav-install.json` show whether an installed file was changed later;
+YAV does not compare them by itself when it starts.
+
 ## What is outside YAV's control
 
 * What a provider does with the prompts and code it receives. With two providers, your task and source are
@@ -199,4 +305,5 @@ request stands in quotes wherever YAV names it.
 * What Model A does inside its own sandbox and with the approvals you give it.
 * `/shell` and `/exec`: they run as you, with your rights, outside every agent sandbox. Changes a child
   shell makes to its directory or environment do not come back to YAV.
-* Telemetry: YAV sends none. The setting exists and is off; nothing in version 0.1.1 transmits data.
+* Telemetry: YAV sends none. The setting exists and is off; nothing in version 0.2.0 transmits data, and
+  installing or removing it sends nothing either.

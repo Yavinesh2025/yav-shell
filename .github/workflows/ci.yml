@@ -1,0 +1,201 @@
+# CI: on every push to main and every pull request to main, builds YAV Shell, runs its automated tests, and builds
+# and checks the package, dist\yav.exe. It runs the scripts a developer runs on a PC (scripts\*.ps1 in PowerShell 7),
+# on Windows, because YAV is a program for Windows. The tests use the scripted stand-in for the agents: nothing here
+# asks a model, and the runner has no agent and no account.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# The token of a run can read the repository and do nothing else.
+permissions:
+  contents: read
+
+# A pull request has one group, and a newer push to it ends the run of the push before it. Every other run, a push to
+# main among them, is in the group of its own commit: a push to main neither ends nor replaces the run of another, so
+# every push to main gets its test result and, when the run succeeds, its package; two runs on main can run at the
+# same time. One group for main would not do that: a group keeps at most one run waiting (queue: single, the
+# default), a newer run replaces the one that waits, and queue: max, which keeps them all, is not allowed with
+# cancel-in-progress: true, which pull requests use.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  POWERSHELL_UPDATECHECK: 'Off'
+  POWERSHELL_TELEMETRY_OPTOUT: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  build:
+    name: Build, test and package
+    # A standard runner: 4 processors for a public repository. Never a self-hosted one for a public repository.
+    runs-on: windows-2025
+    timeout-minutes: 120
+    env:
+      # The lock files are taken as they are: a restore that would have to change one fails instead.
+      RestoreLockedMode: 'true'
+    steps:
+      # Git for Windows on the runner checks text files out with CRLF (core.autocrlf=true in its system settings).
+      # CI checks the files out as the repository stores them, LF, on purpose, and tests and packages those.
+      # A PC whose Git has core.autocrlf=true (the default of Git for Windows) has CRLF working files instead, so
+      # a dist\yav.exe packaged there embeds the documentation with CRLF and has another SHA-256 than the CI one.
+      # The repository has no .gitattributes that would make both the same.
+      # A global setting overrides the system one, and has to be made before the checkout.
+      - name: Keep the line endings of the repository
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Exactly the SDK that global.json names, in a directory of its own, so that no other SDK of the runner image
+      # is used: the lock files name a package whose version comes with the SDK (Microsoft.NET.ILLink.Tasks), and
+      # dist\yav.exe carries the .NET runtime of the SDK that built it.
+      - name: Read the .NET SDK version from global.json
+        id: sdk
+        run: |
+          $version = (Get-Content -LiteralPath global.json -Raw | ConvertFrom-Json).sdk.version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "global.json names the SDK '$version', not a version of three numbers." }
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "version=$version"
+
+      - name: Install the .NET SDK that global.json names
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}\dotnet
+        with:
+          dotnet-version: ${{ steps.sdk.outputs.version }}
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Show the build environment
+        run: |
+          "Runner image: $env:ImageOS $env:ImageVersion"
+          "Windows: $([Environment]::OSVersion.VersionString)"
+          "PowerShell: $($PSVersionTable.PSVersion)"
+          git --version
+          git config --show-origin --get-all core.autocrlf
+          "dotnet: $((Get-Command dotnet).Source)"
+          dotnet --version
+          dotnet --list-runtimes
+          if (Get-Command python -ErrorAction SilentlyContinue) { python --version }
+          exit 0
+
+      # Without -Live, scripts\test.ps1 runs the fixture tests only: the agents are the scripted stand-in, and no test
+      # asks a model. Release is the configuration of the package. When no test has begun or ended for 15 minutes,
+      # the test platform ends the run and names the tests that were still running, long before the time limit of
+      # the step would end it without saying which one hung.
+      - name: Build and run the automated tests
+        timeout-minutes: 60
+        run: .\scripts\test.ps1 -Configuration Release -HangSeconds 900
+
+      # The tests ran in the step before, in the configuration scripts\package.ps1 runs them in.
+      - name: Build the package, dist\yav.exe
+        timeout-minutes: 20
+        run: .\scripts\package.ps1 -SkipTests
+
+      # Windows Sandbox does not exist on Windows Server: the check with -Sandbox, which also installs into the
+      # default directory with PATH and "Installed apps", is made on a PC.
+      - name: Check the package where there is no .NET, no Git and no agent
+        timeout-minutes: 20
+        run: .\scripts\verify-package.ps1
+
+      # It only reports: a problem in it does not decide the result of the run.
+      - name: Write the summary of the run
+        if: always()
+        continue-on-error: true
+        run: |
+          $summary = [System.Collections.Generic.List[string]]::new()
+          $trx = 'artifacts\test-results\yav-tests.trx'
+          if (Test-Path -LiteralPath $trx) {
+            # The table of summarize-tests.ps1 goes into a file among the test results, which are kept with the run.
+            # docs\test-results.md is not written: a run of CI changes no file of the repository.
+            $table = 'artifacts\test-results\test-results.md'
+            .\scripts\summarize-tests.ps1 -Results $trx -Output $table
+            $summary.AddRange([string[]](Get-Content -LiteralPath $table))
+
+            [xml]$xml = Get-Content -LiteralPath $trx -Raw
+            $results = @($xml.TestRun.Results.UnitTestResult)
+            foreach ($kind in @(@{ Outcome = 'Failed'; Title = 'Failed' }, @{ Outcome = 'NotExecuted'; Title = 'Not run' })) {
+              $listed = @($results | Where-Object { $_.outcome -eq $kind.Outcome })
+              if ($listed.Count -eq 0) { continue }
+              $summary.Add('')
+              $summary.Add("## $($kind.Title): $($listed.Count)")
+              $summary.Add('')
+              foreach ($result in ($listed | Select-Object -First 40)) {
+                $message = @(([string]$result.Output.ErrorInfo.Message) -split "`r?`n" | Where-Object { $_.Trim() })
+                $first = if ($message.Count -gt 0) { ': ' + $message[0].Trim().Replace('`', "'") } else { '' }
+                $summary.Add(('- `{0}`{1}' -f ([string]$result.testName).Replace('`', "'"), $first))
+              }
+              if ($listed.Count -gt 40) { $summary.Add("- and $($listed.Count - 40) more") }
+            }
+          }
+          else {
+            $summary.Add('# Test results')
+            $summary.Add('')
+            $summary.Add('The tests did not run to their end, so there are no results. The log of the step that builds and runs them says why.')
+          }
+
+          if (Test-Path -LiteralPath dist\yav.exe.sha256) {
+            $hash = ((Get-Content -LiteralPath dist\yav.exe.sha256 -Raw).Trim() -split '\s+')[0]
+            $size = (Get-Item -LiteralPath dist\yav.exe).Length / 1MB
+            $summary.Add('')
+            $summary.Add('## Package')
+            $summary.Add('')
+            $summary.Add(('`dist\yav.exe`: {0:N1} MB, SHA-256 `{1}`. Not code-signed.' -f $size, $hash))
+          }
+
+          $report = 'artifacts\package-verification\isolated-environment.json'
+          if (Test-Path -LiteralPath $report) {
+            $checks = @((Get-Content -LiteralPath $report -Raw | ConvertFrom-Json).checks)
+            $passed = @($checks | Where-Object { $_.passed }).Count
+            $summary.Add('')
+            $summary.Add("## The package where there is no .NET, no Git and no agent: $passed of $($checks.Count) checks passed")
+            $summary.Add('')
+            foreach ($check in $checks) {
+              $mark = if ($check.passed) { 'ok' } else { '**FAILED**' }
+              $detail = if (-not $check.passed -and $check.detail) { ': ' + (([string]$check.detail) -replace '\s+', ' ') } else { '' }
+              $summary.Add("- $mark $($check.name)$detail")
+            }
+          }
+
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary
+
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results
+          path: |
+            artifacts/test-results/
+            artifacts/measurements/
+            artifacts/package-verification/
+          if-no-files-found: warn
+          retention-days: 30
+          overwrite: true
+
+      # Not for a pull request: anyone can open one, and a yav.exe built from it would then be offered for download
+      # by a run of this repository.
+      - name: Keep the package
+        if: success() && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package
+          path: |
+            dist/yav.exe
+            dist/yav.exe.sha256
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true

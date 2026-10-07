@@ -44,7 +44,7 @@ public static class RunStateMachine
         ],
         [RunState.Implementing] =
         [
-            RunState.AwaitingApproval, RunState.Checking, RunState.Completed, RunState.Blocked, RunState.Interrupted,
+            RunState.AwaitingApproval, RunState.Checking, RunState.Blocked, RunState.Interrupted,
             RunState.RateLimited, RunState.Failed, RunState.NeedsReconciliation,
         ],
         [RunState.AwaitingApproval] =
@@ -52,9 +52,10 @@ public static class RunStateMachine
             RunState.Implementing, RunState.Repairing, RunState.Checking, RunState.Blocked, RunState.Interrupted,
             RunState.Failed, RunState.NeedsReconciliation,
         ],
+        // Completed only for an answer: the frozen workspace holds no change, so there is nothing to review, test or apply.
         [RunState.Checking] =
         [
-            RunState.ReadyToApply, RunState.Repairing, RunState.Blocked, RunState.Interrupted, RunState.RateLimited,
+            RunState.ReadyToApply, RunState.Completed, RunState.Repairing, RunState.Blocked, RunState.Interrupted, RunState.RateLimited,
             RunState.Failed, RunState.NeedsReconciliation,
         ],
         [RunState.Repairing] =

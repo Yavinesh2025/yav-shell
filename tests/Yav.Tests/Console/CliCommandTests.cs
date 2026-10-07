@@ -467,6 +467,28 @@ public class CliCommandTests
         Assert.Null(DoctorChecks.StorePrograms(name => name == "python" ? Redirector : null, _ => null));
     }
 
+    [Theory]
+    [InlineData(26100, false, CheckStatus.Ok, "Windows 11 (build 26100)")]
+    [InlineData(22000, false, CheckStatus.Ok, "Windows 11 (build 22000)")]
+    [InlineData(19045, false, CheckStatus.Warning, "Windows build 19045. ")]
+    [InlineData(26100, true, CheckStatus.Info, "Windows Server (build 26100). ")]
+    [InlineData(20348, true, CheckStatus.Info, "Windows Server (build 20348). ")]
+    public void Doctor_names_windows_server_by_its_kind_and_not_by_its_build(int build, bool server, CheckStatus status, string detail)
+    {
+        // Windows Server 2025 has the build of Windows 11 24H2.
+        var check = DoctorChecks.WindowsVersion(build, server);
+
+        Assert.Equal(("System", "Windows", status), (check.Area, check.Name, check.Status));
+        Assert.StartsWith(detail, check.Detail, StringComparison.Ordinal);
+        Assert.Equal(status == CheckStatus.Warning, check.Remedy is not null);
+    }
+
+    [Fact]
+    public void Windows_says_what_kind_of_windows_it_is()
+    {
+        Assert.NotNull(Yav.Platform.WindowsEdition.IsServer());
+    }
+
     [Fact]
     public void Doctor_says_nothing_about_the_store_where_no_program_comes_from_it()
     {

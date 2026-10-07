@@ -470,6 +470,59 @@ public sealed class TrustStoreTests : IDisposable
         Assert.False(_database.AreGapsAcknowledged(@"C:\Projects\Other", "gaps-1"));
         Assert.False(_database.IsInPlaceAcknowledged(@"C:\Projects\MyApp"));
     }
+
+    [Fact]
+    public void Accepting_the_review_alone_holds_for_that_project_until_it_is_withdrawn()
+    {
+        _database.AcknowledgeInPlace(@"C:\Projects\MyApp", "Weaker protection accepted.");
+        _database.AcknowledgeGaps(@"C:\Projects\MyApp", "gaps-1", "node_modules is absent from the isolated workspace.");
+        Assert.False(_database.IsReviewOnlyAccepted(@"C:\Projects\MyApp"));
+        Assert.False(_database.WithdrawReviewOnly(@"C:\Projects\MyApp"));
+
+        _database.AcceptReviewOnly(@"C:\Projects\MyApp", "Accepted on the review of Model B alone: the project has no approved check.");
+
+        Assert.True(_database.IsReviewOnlyAccepted(@"c:\projects\myapp\"));
+        Assert.False(_database.IsReviewOnlyAccepted(@"C:\Projects\Other"));
+        Assert.Contains(_database.ListAcknowledgements(), a => a.Kind == "review-only" && a.Statement.StartsWith("Accepted on the review of Model B alone", StringComparison.Ordinal));
+
+        Assert.True(_database.WithdrawReviewOnly(@"c:\projects\myapp\"));
+        Assert.False(_database.IsReviewOnlyAccepted(@"C:\Projects\MyApp"));
+        Assert.False(_database.WithdrawReviewOnly(@"C:\Projects\MyApp"));
+
+        // Withdrawing it withdraws nothing else.
+        Assert.True(_database.IsInPlaceAcknowledged(@"C:\Projects\MyApp"));
+        Assert.True(_database.AreGapsAcknowledged(@"C:\Projects\MyApp", "gaps-1"));
+    }
+
+    [Fact]
+    public void When_the_acceptance_of_the_review_alone_was_withdrawn_is_kept_for_that_project()
+    {
+        var clock = new ManualClock();
+        using var directory = new TempDirectory("withdrawn");
+        using var database = YavDatabase.Open(directory.File("yav.db"), clock);
+
+        // Nothing to withdraw: nothing is recorded.
+        Assert.False(database.WithdrawReviewOnly(@"C:\Projects\MyApp"));
+        Assert.Null(database.ReviewOnlyWithdrawnAt(@"C:\Projects\MyApp"));
+
+        database.AcceptReviewOnly(@"C:\Projects\MyApp", "Accepted on the review of Model B alone.");
+        clock.Advance(TimeSpan.FromMinutes(5));
+        Assert.True(database.WithdrawReviewOnly(@"c:\projects\myapp\"));
+        Assert.Equal(clock.GetUtcNow(), database.ReviewOnlyWithdrawnAt(@"C:\Projects\MyApp"));
+        Assert.Null(database.ReviewOnlyWithdrawnAt(@"C:\Projects\Other"));
+
+        // Accepted once more and withdrawn again: the later withdrawal counts.
+        database.AcceptReviewOnly(@"C:\Projects\MyApp", "Accepted on the review of Model B alone.");
+        clock.Advance(TimeSpan.FromMinutes(5));
+        Assert.True(database.WithdrawReviewOnly(@"C:\Projects\MyApp"));
+        Assert.Equal(clock.GetUtcNow(), database.ReviewOnlyWithdrawnAt(@"C:\Projects\MyApp"));
+
+        // A withdrawal is not an acknowledgement, and does not make the acceptance count.
+        Assert.False(database.IsReviewOnlyAccepted(@"C:\Projects\MyApp"));
+        Assert.DoesNotContain(database.ListAcknowledgements(), a => a.Kind.StartsWith("review-only", StringComparison.Ordinal));
+        database.Dispose();
+        SqliteConnection.ClearAllPools();
+    }
 }
 
 public sealed class JournalStoreTests : IDisposable

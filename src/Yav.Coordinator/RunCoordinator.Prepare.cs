@@ -42,15 +42,22 @@ public sealed partial class RunCoordinator
         switch (state.Trust)
         {
             case ConfigurationTrust.Untrusted:
+                // Untrusted also stands for an approval that YAV stored but can no longer read. Then the file may well
+                // have been approved, and what went wrong is said instead.
                 problems.Add(new ProfileProblem(
                     null, ProblemSeverity.Warning, "gates-untrusted",
-                    $"{file} has not been approved by you, so nothing from it is used.", "Review and approve it with /test trust."));
+                    state.Errors.Count == 0
+                        ? $"{file} has not been approved by you, so nothing from it is used."
+                        : $"Nothing from {file} is used, because what you approved for this project cannot be read.",
+                    state.Errors.Count == 0 ? "Review and approve it with /test trust." : "Review and approve it again with /test trust."));
+                AddErrors(problems, state.Errors);
                 break;
 
             case ConfigurationTrust.Changed:
                 problems.Add(new ProfileProblem(
                     null, ProblemSeverity.Warning, "gates-changed",
                     $"{file} differs from the version you approved. The approved version stays in effect.", "Review the change with /test trust."));
+                AddErrors(problems, state.Errors);
                 break;
 
             case ConfigurationTrust.Invalid:
@@ -60,12 +67,39 @@ public sealed partial class RunCoordinator
                 break;
 
             default:
-                foreach (var error in state.Errors)
-                {
-                    problems.Add(new ProfileProblem(null, ProblemSeverity.Warning, "gates-invalid", error, null));
-                }
-
+                AddErrors(problems, state.Errors);
                 break;
+        }
+
+        // The user may have accepted for this project that a candidate is accepted on the review alone, because
+        // the project has no approved check that is required. That holds only while it has none: as soon as an
+        // approved check is required, the run requires checks as usual. An approved check that is optional does
+        // not end the acceptance: a run does not run it, so the candidate is still accepted on the review alone.
+        // The policy of the run says so itself, so that the profile and the acceptance gate agree.
+        // The acceptance applies only when it is known what is approved. When the approved configuration or the
+        // file cannot be read, no required check may only seem to be approved, so the run does not go on.
+        var policy = configuration.Policy;
+        if (policy.RequireGates && !state.Effective.RequiredGates.Any() && _services.Trust.IsReviewOnlyAccepted(project))
+        {
+            if (state.Trust == ConfigurationTrust.Invalid || state.Errors.Count > 0)
+            {
+                problems.Add(new ProfileProblem(
+                    null, ProblemSeverity.Blocking, "review-only-unknown",
+                    "You accepted for this project that a candidate is accepted on the review of Model B alone, which applies only while no approved check is required. "
+                    + (state.Trust == ConfigurationTrust.Invalid
+                        ? $"{file} cannot be used, so it is not known whether it names a required check, and the run does not go on without one: "
+                        : "Which checks are approved cannot be read now, so the run does not go on without them: ")
+                    + (state.Errors.FirstOrDefault() ?? $"{file} could not be read."),
+                    $"Correct {file} or approve the checks again with /test trust; /quality gates required withdraws the acceptance."));
+            }
+            else
+            {
+                policy = policy with { RequireGates = false };
+                problems.Add(new ProfileProblem(
+                    null, ProblemSeverity.Warning, "review-only",
+                    "This project has no approved check that is required, and you accepted for it that a candidate is accepted on the review of Model B alone: nothing is run to check it.",
+                    "Approve a required check with /test detect or /test trust, and checks are required again; /quality gates required withdraws the acceptance."));
+            }
         }
 
         // The project and the agents do not depend on each other, and both are only read: they are looked
@@ -135,7 +169,7 @@ public sealed partial class RunCoordinator
         var resolution = ProfileResolver.Resolve(new ProfileRequest(
             ProjectPath: project,
             ProjectTrusted: _services.Trust.IsProjectTrusted(project),
-            Policy: configuration.Policy,
+            Policy: policy,
             Implementer: configuration.ModelA,
             Reviewer: configuration.ModelB,
             Speed: configuration.Speed,
@@ -151,6 +185,15 @@ public sealed partial class RunCoordinator
 
         problems.InsertRange(0, resolution.Problems);
         return new Preflight(project, resolution, inspection, state, mode, problems);
+    }
+
+    /// <summary>What kept the approved configuration or the project's file from being read, one warning each.</summary>
+    private static void AddErrors(List<ProfileProblem> problems, IReadOnlyList<string> errors)
+    {
+        foreach (var error in errors)
+        {
+            problems.Add(new ProfileProblem(null, ProblemSeverity.Warning, "gates-invalid", error, null));
+        }
     }
 
     private static async Task<T> MeasuredAsync<T>(TimingRecorder timing, SpanKind kind, string label, string group, Func<Task<T>> work)

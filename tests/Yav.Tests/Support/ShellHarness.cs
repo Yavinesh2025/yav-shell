@@ -62,8 +62,8 @@ public sealed class ShellHarness : IAsyncDisposable
 
         var settings = new AppSettings
         {
-            ModelA = new RoleSelection(CodexAppServerAdapter.AdapterId, "model-a"),
-            ModelB = new RoleSelection(CodexAppServerAdapter.AdapterId, "model-b"),
+            ModelA = options.ChooseModels ? new RoleSelection(CodexAppServerAdapter.AdapterId, "model-a") : null,
+            ModelB = options.ChooseModels ? new RoleSelection(CodexAppServerAdapter.AdapterId, "model-b") : null,
         };
         foreach (var (id, flavor) in new[]
         {
@@ -164,6 +164,13 @@ public sealed class ShellHarness : IAsyncDisposable
     /// <summary>Starts the shell as 'yav &lt;path&gt;' does.</summary>
     public void StartIn(string path) => _running = Task.Run(() => Shell.RunAsync(path, CancellationToken.None));
 
+    /// <summary>
+    /// Starts the shell as 'yav' alone does, in the directory of the test process: from a shell, or, with
+    /// <paramref name="startedOutsideAShell"/>, from a console Windows made for it alone.
+    /// </summary>
+    public void StartWithoutPath(bool startedOutsideAShell) =>
+        _running = Task.Run(() => Shell.RunAsync(null, CancellationToken.None, startedOutsideAShell));
+
     /// <summary>Waits until the shell has ended by itself and returns its exit code.</summary>
     public async Task<int> WaitForExitAsync(int seconds = 90) => await _running!.WaitAsync(TimeSpan.FromSeconds(seconds));
 
@@ -218,6 +225,29 @@ public sealed class ShellHarness : IAsyncDisposable
     {
         Keys.Type(answer).Enter();
         return this;
+    }
+
+    /// <summary>
+    /// Waits until the shell asks a question of its own, one that begins with the text and waits for a line with
+    /// nothing typed for it yet. A question that is the same text as one before is told apart by the count of rows
+    /// that ask it: <paramref name="occurrence"/> is the how-manieth time it is asked.
+    /// </summary>
+    public async Task WaitForAskingAsync(string question, int occurrence = 1, int seconds = 60)
+    {
+        var text = question.TrimEnd();
+        await WaitUntilAsync(
+            () => Terminal.CursorLine.StartsWith(text, StringComparison.Ordinal)
+                && Terminal.CursorLine.TrimEnd().EndsWith(':')
+                && Terminal.Lines.Count(row => row.StartsWith(text, StringComparison.Ordinal)) >= occurrence,
+            $"the question '{text}' (asked {occurrence} time(s))",
+            seconds);
+    }
+
+    /// <summary>Waits for the question and answers it with a line.</summary>
+    public async Task AnswerWhenAskedAsync(string question, string answer, int occurrence = 1, int seconds = 60)
+    {
+        await WaitForAskingAsync(question, occurrence, seconds);
+        Enter(answer);
     }
 
     /// <summary>
@@ -478,6 +508,9 @@ public sealed record ShellOptions
 
     /// <summary>False leaves the account routes as a new user finds them: not acknowledged.</summary>
     public bool AcknowledgeRoutes { get; init; } = true;
+
+    /// <summary>False starts as a new user does: neither Model A nor Model B is chosen.</summary>
+    public bool ChooseModels { get; init; } = true;
 
     public bool TrustProject { get; init; } = true;
 

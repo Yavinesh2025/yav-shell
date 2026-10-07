@@ -15,8 +15,9 @@ what it shows is what this version of YAV Shell does.
 ## Using a configuration
 
 Copy the one that is closest to your project into the root of the project as `yav.project.json` and
-change it. It is a proposal until you approve it: `/test trust` shows the commands and asks. The user
-guide describes every setting.
+change it. It is a proposal until you approve it. In a project that has no approved required check yet, the
+first request you type shows the commands and asks; `/test trust` does the same at any time, and is
+how a later change to the file is approved. The user guide describes every setting.
 
 The files contain comments. YAV reads them; other programs that read JSON may not.
 

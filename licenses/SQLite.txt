@@ -1,0 +1,13 @@
+SQLite (the native library e_sqlite3.dll, as built by SQLitePCLRaw.lib.e_sqlite3 2.1.12), inside yav.exe
+License: public domain (https://www.sqlite.org/copyright.html)
+Text copied verbatim from: the section "License for SQLite" of NOTICE.TXT of github.com/ericsink/SQLitePCL.raw at tag v2.1.12
+
+----------------------------------------------------------------
+
+** The author disclaims copyright to this source code.  In place of
+** a legal notice, here is a blessing:
+**
+**    May you do good and not evil.
+**    May you find forgiveness for yourself and forgive others.
+**    May you share freely, never taking more than you give.
+**

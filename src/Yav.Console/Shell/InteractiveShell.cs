@@ -27,6 +27,12 @@ public sealed class ActiveRun
 
     public required string Request { get; init; }
 
+    /// <summary>
+    /// The request as it was sent, so that the guided first run can send it again unchanged once what kept it
+    /// from starting is settled. Null for a run that was resumed or checked again.
+    /// </summary>
+    internal SentRequest? Sent { get; init; }
+
     public required CancellationTokenSource Stop { get; init; }
 
     public required DateTimeOffset StartedAt { get; init; }
@@ -175,6 +181,12 @@ public sealed partial class InteractiveShell
     private bool _interruptedOnce;
     private bool _startupMeasured;
 
+    // The question of the guided first run that is open, if any: Control+C as a signal cancels it.
+    private CancellationTokenSource? _guideQuestion;
+
+    // Whether the last ConfirmAsync got no answer at all (Control+C, or the end of the input), as opposed to a typed one.
+    private bool _confirmUnanswered;
+
     public InteractiveShell(AppServices services, Screen screen, IShellInput input, ConsoleHost? host, long processStartedTimestamp)
     {
         _services = services;
@@ -189,9 +201,14 @@ public sealed partial class InteractiveShell
 
     private RunCoordinator Coordinator => _services.Coordinator;
 
-    public async Task<int> RunAsync(string? projectPath, CancellationToken cancellationToken)
+    /// <param name="startedOutsideAShell">
+    /// True when Windows made the console for YAV alone: opened from Explorer, the Start menu or the Run dialog. The
+    /// directory it starts in then says nothing about a project, so without a path none is selected, and the first
+    /// request asks for the folder.
+    /// </param>
+    public async Task<int> RunAsync(string? projectPath, CancellationToken cancellationToken, bool startedOutsideAShell = false)
     {
-        OpenInitialProject(projectPath);
+        OpenInitialProject(projectPath, startedOutsideAShell);
         Banner();
         foreach (var problem in _services.StartupProblems)
         {
@@ -206,7 +223,7 @@ public sealed partial class InteractiveShell
 
         while (!_session.ExitRequested && !cancellationToken.IsCancellationRequested)
         {
-            await CompleteRunIfEndedAsync().ConfigureAwait(false);
+            await CompleteRunIfEndedAsync(cancellationToken).ConfigureAwait(false);
             if (_session.ExitRequested)
             {
                 break;
@@ -256,7 +273,7 @@ public sealed partial class InteractiveShell
             {
                 await HandleAsync(input.Text, cancellationToken).ConfigureAwait(false);
             }
-            catch (Exception ex) when (ex is AgentException or IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+            catch (Exception ex) when (IsCommandFailure(ex))
             {
                 // A command that failed must not take the shell with it.
                 _ui.Error($"{ex.GetType().Name}: {ex.Message}");
@@ -268,14 +285,36 @@ public sealed partial class InteractiveShell
     }
 
     /// <summary>
-    /// Control+C where it does not arrive as a key: stops the run that is active. False when there is
-    /// none, which leaves the decision to whoever asked.
+    /// What a command may fail with, and the guided first run as well when it records an answer, without taking the
+    /// shell with it: what failed is said, and the shell asks for the next line.
+    /// </summary>
+    private static bool IsCommandFailure(Exception ex) =>
+        ex is AgentException or IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException;
+
+    /// <summary>
+    /// Control+C where it does not arrive as a key: stops the run that is active, or cancels the question of the
+    /// guided first run that is open, which then sends nothing. False when there is neither, which leaves the
+    /// decision to whoever asked.
     /// </summary>
     public bool Interrupt()
     {
         if (_session.Active is not { } run)
         {
-            return false;
+            if (Volatile.Read(ref _guideQuestion) is not { } question)
+            {
+                return false;
+            }
+
+            try
+            {
+                question.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The question was answered at this very moment. Nothing is left to cancel.
+            }
+
+            return true;
         }
 
         // The shell may let go of the run on its own thread at this very moment. Then there is nothing to stop.
@@ -324,7 +363,18 @@ public sealed partial class InteractiveShell
 
         if (settings.ModelA is null || settings.ModelB is null)
         {
-            _ui.Warn("Model A and Model B are not both chosen yet. YAV does not choose models for you: see /models.");
+            var missing = settings.ModelA is null && settings.ModelB is null ? "Model A and Model B are"
+                : settings.ModelA is null ? "Model A is" : "Model B is";
+            if (_input.CanAsk)
+            {
+                // Said as guidance, not as a fault: the first request asks for what is missing.
+                _ui.Say($"{missing} not chosen yet. Type your request: YAV lists the models your agents offer and asks you to choose. It does not choose them for you.");
+            }
+            else
+            {
+                // Nobody can be asked in this mode, so a request is refused until the models are chosen.
+                _ui.Warn($"{missing} not chosen yet. YAV does not choose models for you: see /models.");
+            }
         }
     }
 
@@ -343,8 +393,13 @@ public sealed partial class InteractiveShell
             : $"A {settings.ModelA.EffortPreference}, B {settings.ModelB.EffortPreference}";
     }
 
-    private void OpenInitialProject(string? projectPath)
+    private void OpenInitialProject(string? projectPath, bool startedOutsideAShell)
     {
+        if (projectPath is null && startedOutsideAShell)
+        {
+            return;
+        }
+
         var candidate = projectPath ?? Environment.CurrentDirectory;
         string full;
         try
@@ -377,6 +432,12 @@ public sealed partial class InteractiveShell
     {
         var full = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar);
         if (Path.GetPathRoot(full)?.TrimEnd(Path.DirectorySeparatorChar) == full)
+        {
+            return false;
+        }
+
+        // Where a downloaded yav.exe is opened from: the folder of downloads is no project either.
+        if (string.Equals(Path.TrimEndingDirectorySeparator(KnownFolders.Downloads), full, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -586,8 +647,17 @@ public sealed partial class InteractiveShell
     {
         if (_session.ProjectPath is null)
         {
-            _ui.Warn("No project is selected, so the request was not sent. Select one with /open <path>.");
-            return;
+            // Started from a place that is no project: whoever typed the request is asked which project it is for.
+            if (!_input.CanAsk)
+            {
+                _ui.Warn("No project is selected, so the request was not sent. Select one with /open <path>.");
+                return;
+            }
+
+            if (!await AskForProjectAsync(cancellationToken).ConfigureAwait(false))
+            {
+                return;
+            }
         }
 
         if (_session.Active is not null)
@@ -688,7 +758,15 @@ public sealed partial class InteractiveShell
             + "It is not added to the running turn; /queue shows how to do that where the agent supports it.");
     }
 
-    private async Task StartRunAsync(string text, string? taskId, MechanicalEditRequest? edit, CancellationToken cancellationToken)
+    private Task StartRunAsync(string text, string? taskId, MechanicalEditRequest? edit, CancellationToken cancellationToken)
+    {
+        // What was attached goes with this request and with nothing after it.
+        var sent = new SentRequest(text, taskId, [.. _session.Attachments], edit);
+        _session.Attachments.Clear();
+        return StartRunAsync(sent, cancellationToken);
+    }
+
+    private async Task StartRunAsync(SentRequest sent, CancellationToken cancellationToken)
     {
         if (_reconciliation is { IsCompleted: false } pending)
         {
@@ -706,7 +784,7 @@ public sealed partial class InteractiveShell
 
         var project = _session.ProjectPath!;
         var stop = new CancellationTokenSource();
-        var run = new ActiveRun { Request = text, Stop = stop, StartedAt = _services.Clock.GetUtcNow() };
+        var run = new ActiveRun { Request = sent.Text, Sent = sent, Stop = stop, StartedAt = _services.Clock.GetUtcNow() };
         var formatter = new RunEventFormatter(new FormatterOptions(_screen.Options.Unicode, _session.Verbose));
         var observer = new Cli.DelegateObserver(runEvent =>
         {
@@ -720,17 +798,16 @@ public sealed partial class InteractiveShell
             _screen.WriteLines(formatter.Format(runEvent));
         });
 
-        var request = new RunRequest(project, text)
+        var request = new RunRequest(project, sent.Text)
         {
-            TaskId = taskId,
-            Attachments = [.. _session.Attachments],
-            MechanicalEdit = edit,
+            TaskId = sent.TaskId,
+            Attachments = [.. sent.Attachments],
+            MechanicalEdit = sent.Edit,
             EquivalenceGapsAcknowledged = false,
 
             // With Adaptive mode off nothing is lowered, whatever was approved for the task earlier.
             ImplementerEffort = _services.Settings.Adaptive ? _session.TaskEffort : null,
         };
-        _session.Attachments.Clear();
         _session.QueuePaused = false;
         _session.Active = run;
 
@@ -764,7 +841,7 @@ public sealed partial class InteractiveShell
         }
     }
 
-    private async Task CompleteRunIfEndedAsync()
+    private async Task CompleteRunIfEndedAsync(CancellationToken cancellationToken)
     {
         if (_session.Active is not { Task.IsCompleted: true } run)
         {
@@ -794,6 +871,18 @@ public sealed partial class InteractiveShell
             _session.TaskId = outcome.TaskId ?? _session.TaskId;
         }
 
+        // A request that was refused before anything began, for something whoever typed it can settle here, is
+        // sent again once that is settled. Nothing of it was stored, so nothing has to be undone first.
+        IReadOnlySet<string> settledNow = new HashSet<string>(StringComparer.Ordinal);
+        if (!_session.ExitRequested && run.Sent is { } sent)
+        {
+            (var sentAgain, settledNow) = await SettleAndSendAgainAsync(sent, outcome, cancellationToken).ConfigureAwait(false);
+            if (sentAgain)
+            {
+                return;
+            }
+        }
+
         // A run that was refused said why in a note of its own, and that is enough.
         run.SaidHowItEnded |= outcome.Reason is { } said && run.HasNoted(said);
         if (!run.SaidHowItEnded && !string.IsNullOrWhiteSpace(outcome.Reason) && outcome.Problems.Count == 0)
@@ -802,7 +891,7 @@ public sealed partial class InteractiveShell
             _ui.Warn(outcome.Reason);
         }
 
-        Advise(outcome);
+        Advise(outcome, settledNow);
 
         var ready = outcome.Kind is RunOutcomeKind.ReadyToApply or RunOutcomeKind.Completed;
         _session.QueuePaused = !ready;
@@ -824,9 +913,12 @@ public sealed partial class InteractiveShell
         }
     }
 
-    private void Advise(RunOutcome outcome)
+    /// <param name="settled">
+    /// What the guided first run settled for the request before it stopped: its remedies are no longer what to do.
+    /// </param>
+    private void Advise(RunOutcome outcome, IReadOnlySet<string> settled)
     {
-        foreach (var problem in outcome.Problems.Where(p => p.Severity == ProblemSeverity.Blocking && p.Remedy is not null))
+        foreach (var problem in outcome.Problems.Where(p => p.Severity == ProblemSeverity.Blocking && p.Remedy is not null && !settled.Contains(SetupProblems.Key(p))))
         {
             _ui.Muted($"           {problem.Code}: {problem.Remedy}");
         }
@@ -912,7 +1004,7 @@ public sealed partial class InteractiveShell
             }
 
             _session.ExitRequested = true;
-            await CompleteRunIfEndedAsync().ConfigureAwait(false);
+            await CompleteRunIfEndedAsync(CancellationToken.None).ConfigureAwait(false);
         }
 
         _session.ExitRequested = true;

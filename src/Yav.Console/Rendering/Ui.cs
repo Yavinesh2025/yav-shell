@@ -109,6 +109,11 @@ public sealed class Ui
             // The sixteen named colors only, so the terminal's own theme decides how they look.
             ColorSystem = _screen.Options.Color ? ColorSystemSupport.Standard : ColorSystemSupport.NoColors,
             Interactive = InteractionSupport.No,
+
+            // Without this, Spectre.Console changes the profile for the build service it believes it runs on, and
+            // where GITHUB_ACTIONS is set it switches ANSI on, over the choice above: a pipe would get control
+            // sequences. What is written here is decided by the options of the screen alone.
+            Enrichment = new ProfileEnrichment { UseDefaultEnrichers = false },
             Out = new AnsiConsoleOutput(writer),
         });
         console.Profile.Width = Math.Clamp(_screen.Width == int.MaxValue ? 200 : _screen.Width - 1, 40, 200);

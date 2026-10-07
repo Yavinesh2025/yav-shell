@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Yav.Adapters;
 using Yav.Tests.Support;
@@ -37,14 +36,17 @@ public class VersionTests
     }
 
     [Fact]
-    public void The_installer_is_built_for_the_version_of_the_product_when_it_is_given_none()
+    public void Every_version_of_the_build_names_the_version_of_the_product()
     {
-        var script = File.ReadAllText(Path.Combine(Repository, "installer", "yav-shell.iss"));
+        // yav --version reports InformationalVersion; Windows shows FileVersion; .NET binds by AssemblyVersion.
+        var props = XDocument.Load(Path.Combine(Repository, "Directory.Build.props"));
+        string Named(string name) => Assert.Single(props.Descendants(name)).Value;
 
-        var written = Regex.Match(script, "#define AppVersion \"([^\"]+)\"");
-
-        Assert.True(written.Success, "The installer script does not say for which version it is built.");
-        Assert.Equal(Fixtures.ProductVersion, written.Groups[1].Value);
+        var version = Named("Version");
+        Assert.Equal(Fixtures.ProductVersion, version);
+        Assert.Equal(version, Named("InformationalVersion"));
+        Assert.Equal(version + ".0", Named("AssemblyVersion"));
+        Assert.Equal(version + ".0", Named("FileVersion"));
     }
 
     [Fact]

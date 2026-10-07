@@ -92,8 +92,9 @@ two runs with real models. Provider features change; `/doctor` reports what is t
 
 `ultra` is not simply "more than `max`": it adds delegation to other agents. YAV therefore **does not
 choose between them for you**. When a model lists a value YAV cannot rank, "maximum" is not resolved and
-the run does not start until you set the exact value with `/effort`. YAV has not verified how delegated
-agents inherit the sandbox of a conversation.
+the run does not start until you set the exact value: the shell asks for it when a request needs it, and
+`/effort` sets it at any time. YAV has not verified how delegated agents inherit the sandbox of a
+conversation.
 
 ### Provider speed
 
@@ -112,6 +113,8 @@ A compatibility path for non-interactive runs.
   strict policy such a run is blocked before it starts (`settings-unverifiable`).
 * It cannot list models. YAV uses the list from the app server adapter when that is available and labels
   the source.
+* The questions of a first request list the models of the app server, and those of `codex exec` only when
+  the app server cannot be used. `/models a|b codex-exec <model>` chooses it on purpose.
 * Each turn is a process. Resuming uses `codex exec resume <session-id>` with the sandbox passed as
   `-c sandbox_mode=...`, because `resume` has no `-s` option.
 
@@ -191,11 +194,15 @@ Anthropic's policy (`code.claude.com/docs/en/legal-and-compliance`, read 2026-09
 third-party developers may not offer Claude.ai login or route requests through subscription credentials
 on behalf of their users. YAV therefore:
 
-* never offers a Claude.ai login, never reads or relays tokens, and never starts an OAuth flow of its own;
+* never offers a Claude.ai login of its own, never reads or relays tokens, and never starts an OAuth flow
+  of its own. The first request does not offer to sign Claude Code in: it says how to sign in with Claude
+  Code itself. `/login claude` starts Claude Code's own `claude auth login` only when you ask for it with
+  that command, and after you typed `yes`;
 * starts the unmodified `claude` program that you installed and signed in to yourself;
 * shows the account route that program reports (subscription, API key, cloud provider) and its billing
   kind before any work;
-* requires a one-time acknowledgement **per route** that you have read the provider's terms for it;
+* requires a one-time acknowledgement **per route** that you have read the provider's terms for it, which
+  the shell asks for when a request needs it and `/login` asks for as well;
 * supports an API key as the explicitly configured, separately billed route (`/login claude --api-key`).
 
 Whether your subscription covers use through a program like YAV is a question of the provider's terms for

@@ -3,13 +3,17 @@
     Writes a summary of the last complete test run: how many tests each class has and how they ended.
 .DESCRIPTION
     Reads the results that scripts\dev-check.ps1 or scripts\test.ps1 left in artifacts\test-results and
-    writes docs\test-results.md. Nothing is run.
+    writes docs\test-results.md, or the file -Output names. Nothing is run.
 .PARAMETER Results
     The .trx file to read. Default: the newest one in artifacts\test-results.
+.PARAMETER Output
+    The file to write. Default: docs\test-results.md of the repository. A relative path is taken from the
+    current location; a directory that is not there is created.
 #>
 [CmdletBinding()]
 param(
-    [string]$Results
+    [string]$Results,
+    [string]$Output
 )
 
 $ErrorActionPreference = 'Stop'
@@ -63,6 +67,8 @@ foreach ($class in ($classes.Values | Sort-Object Name)) {
     $lines.Add("| $short | $($class.Passed) | $($class.Failed + $class.Other) |")
 }
 
-$target = Join-Path $repo 'docs\test-results.md'
+$target = if ($Output) { $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Output) } else { Join-Path $repo 'docs\test-results.md' }
+$directory = Split-Path -Parent $target
+if ($directory -and -not (Test-Path -LiteralPath $directory)) { New-Item -ItemType Directory -Path $directory -Force | Out-Null }
 [IO.File]::WriteAllLines($target, $lines, (New-Object System.Text.UTF8Encoding($false)))
 Write-Host "$($counters.passed) of $($counters.total) passed. Written to $target"

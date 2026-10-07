@@ -392,9 +392,13 @@ public class ShellRunCommandTests
         shell.AssertShows("No check is approved for this project. /test detect proposes some from what the project contains.");
 
         shell.Enter(Task);
+
+        // Acceptance on the review alone is offered, and it is the user's to give. Without it nothing is sent.
+        await shell.AnswerWhenAskedAsync("Accept candidates of this project on the review alone? Type yes to confirm:", string.Empty);
         await shell.WaitForRunToEndAsync();
 
-        shell.AssertShows("[BLOCKED]");
+        shell.AssertShows("[BLOCKED]", "The request was not sent.");
+        Assert.False(shell.Services.Database.IsReviewOnlyAccepted(shell.Project.Path));
         Assert.Empty(shell.Agents.CodexRequests("turn/start"));
     }
 

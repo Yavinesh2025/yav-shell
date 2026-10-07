@@ -91,6 +91,12 @@ public sealed record AppSettings
 
     public bool PlainOutput { get; init; }
 
+    /// <summary>
+    /// True after the user, in a console that was open already, answered no when 'yav' offered to install itself. It
+    /// is not offered in such a console again; opened from Explorer it still is, and 'yav install' still installs.
+    /// </summary>
+    public bool InstallOfferDeclined { get; init; }
+
     public QualityPolicy ToPolicy() => new(
         QualityLock: QualityLock,
         Strict: Strict,

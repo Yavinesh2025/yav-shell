@@ -8,6 +8,12 @@ public enum CliMode
     /// <summary>One request, no prompt, a result and an exit code.</summary>
     Run,
     Doctor,
+
+    /// <summary>Installs the yav.exe that runs for the current user.</summary>
+    Install,
+
+    /// <summary>Removes the installation of the current user.</summary>
+    Uninstall,
     Help,
     Version,
     Invalid,
@@ -22,7 +28,24 @@ public sealed record CliOptions(
     bool Plain = false,
     bool Apply = false,
     string? TaskId = null,
-    string? Error = null);
+    string? Error = null)
+{
+    /// <summary>
+    /// 'yav install|uninstall --dir': the installation directory. Null: 'install' takes the directory "Installed apps"
+    /// names, otherwise %LOCALAPPDATA%\Programs\YavShell; 'uninstall' takes the directory "Installed apps" names,
+    /// otherwise the directory of the program that runs when it holds yav-install.json.
+    /// </summary>
+    public string? InstallDirectory { get; init; }
+
+    /// <summary>'yav install --no-path': the PATH of the user account is left as it is.</summary>
+    public bool NoPath { get; init; }
+
+    /// <summary>'yav install --no-register': YAV Shell is not added to "Installed apps".</summary>
+    public bool NoRegister { get; init; }
+
+    /// <summary>'yav uninstall --remove-data': the data directory is removed as well, after the user confirmed it.</summary>
+    public bool RemoveData { get; init; }
+}
 
 /// <summary>
 /// Reads the arguments YAV was started with. Nothing is guessed: an argument that is not understood is an
@@ -37,6 +60,10 @@ public static class CommandLine
           yav run --project <path> --task <text> [--json] [--apply] [--continue <task-id>]
           yav run --project <path> --prompt-file <file> [--json]
           yav doctor [--json]                   Check prerequisites and agents
+          yav install [--dir <path>] [--no-path] [--no-register]
+                                                Install this yav.exe for your user account
+          yav uninstall [--dir <path>] [--remove-data]
+                                                Remove the installation; your data stays unless --remove-data
           yav --version | --help
 
         Options:
@@ -47,6 +74,11 @@ public static class CommandLine
               --apply               Apply the candidate when it passed review and all required checks
               --json                Write only JSON lines to standard output
               --plain               No colors, no cursor movement
+              --dir <path>          Where YAV Shell is installed (default: the existing installation;
+                                    a new one goes to %LOCALAPPDATA%\Programs\YavShell)
+              --no-path             'install': leave the PATH of your user account as it is
+              --no-register         'install': do not list YAV Shell under "Installed apps"
+              --remove-data         'uninstall': remove your settings, history and workspaces as well, after you confirmed it
 
         Exit codes of 'yav run':
           0  ready to apply, applied, or answered without changes
@@ -77,6 +109,11 @@ public static class CommandLine
         if (first is "--version" or "version")
         {
             return new CliOptions(CliMode.Version);
+        }
+
+        if (first is "install" or "uninstall")
+        {
+            return ParseInstallation(first == "install" ? CliMode.Install : CliMode.Uninstall, arguments);
         }
 
         var mode = CliMode.Interactive;
@@ -208,6 +245,70 @@ public static class CommandLine
         }
 
         return new CliOptions(mode, project, task, promptFile, json, plain || json, apply, taskId);
+    }
+
+    /// <summary>'yav install' and 'yav uninstall'. Each takes only its own options; a path is given with --dir, never by itself.</summary>
+    private static CliOptions ParseInstallation(CliMode mode, IReadOnlyList<string> arguments)
+    {
+        var verb = mode == CliMode.Install ? "install" : "uninstall";
+        string? directory = null;
+        bool noPath = false, noRegister = false, removeData = false;
+        for (var index = 1; index < arguments.Count; index++)
+        {
+            var argument = arguments[index];
+            var (name, inline) = Split(argument);
+            switch (name)
+            {
+                case "--dir":
+                {
+                    if (directory is not null)
+                    {
+                        return Invalid("Only one directory can be named, but --dir was given twice. A path with spaces needs quotes.");
+                    }
+
+                    // The next argument is the directory only when it is no option: 'yav install --dir --no-path' has
+                    // forgotten the directory, and must not install into a folder named "--no-path". A directory whose
+                    // name begins with a dash is named with --dir=<path>.
+                    if (inline is null && index + 1 < arguments.Count && arguments[index + 1].StartsWith('-'))
+                    {
+                        return Invalid("--dir needs a value. A directory whose name begins with a dash is named with --dir=<path>.");
+                    }
+
+                    directory = inline ?? (index + 1 < arguments.Count ? arguments[++index] : null);
+                    if (string.IsNullOrWhiteSpace(directory))
+                    {
+                        return Invalid("--dir needs a value.");
+                    }
+
+                    break;
+                }
+
+                case "--no-path" when mode == CliMode.Install && inline is null:
+                    noPath = true;
+                    break;
+
+                case "--no-register" when mode == CliMode.Install && inline is null:
+                    noRegister = true;
+                    break;
+
+                case "--remove-data" when mode == CliMode.Uninstall && inline is null:
+                    removeData = true;
+                    break;
+
+                default:
+                    return Invalid(argument.StartsWith('-')
+                        ? $"'{argument}' is not an option of 'yav {verb}'."
+                        : $"'{argument}' is not an option of 'yav {verb}'. A directory is named with --dir <path>.");
+            }
+        }
+
+        return new CliOptions(mode)
+        {
+            InstallDirectory = directory,
+            NoPath = noPath,
+            NoRegister = noRegister,
+            RemoveData = removeData,
+        };
     }
 
     private static (string Name, string? Inline) Split(string argument)

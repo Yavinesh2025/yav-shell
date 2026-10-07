@@ -1,0 +1,10 @@
+# Dependabot proposes, once a week, newer versions of the GitHub Actions the workflows use. The workflows name each
+# action by the full SHA of a commit, with its version in a comment; a proposal changes both.
+# NuGet packages are left out on purpose: their versions are pinned in Directory.Packages.props and change only
+# together with a full test run.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

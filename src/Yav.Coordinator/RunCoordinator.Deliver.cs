@@ -40,6 +40,7 @@ public sealed partial class RunCoordinator
 
         IsolatedWorkspace workspace;
         Candidate candidate;
+        RunProfile profile;
         AcceptanceDecision decision;
         using (timing.Start(SpanKind.Apply, "evidence"))
         {
@@ -49,10 +50,10 @@ public sealed partial class RunCoordinator
                 return Refused(located.Problem, run.State, run.Disposition);
             }
 
-            (workspace, candidate) = (located.Workspace!, located.Candidate!);
+            (workspace, candidate, profile) = (located.Workspace!, located.Candidate!, located.Profile!);
 
             // Nothing is taken on trust from the moment the run became ready: the evidence is evaluated again.
-            decision = await EvaluateStoredAsync(run, located.Profile!, workspace, candidate, cancellationToken).ConfigureAwait(false);
+            decision = await EvaluateStoredAsync(run, profile, workspace, candidate, cancellationToken).ConfigureAwait(false);
         }
 
         if (!decision.Accepted)
@@ -63,6 +64,18 @@ public sealed partial class RunCoordinator
             publisher.Publish(new StateChanged(runId, Clock.GetUtcNow(), RunState.ReadyToApply, RunState.Blocked, reason));
             publisher.Note(Stages.Blocked, reason, NoteLevel.Error);
             return new DeliveryOutcome(false, reason, RunState.Blocked, run.Disposition, [], null, decision);
+        }
+
+        // A run that did not require checks may have owed that to the acceptance of the review alone. The evidence
+        // cannot tell, because the policy of the run says only that checks were not required. When that acceptance was
+        // withdrawn after the run started and was not given again, what it allowed is not applied. The run stays
+        // ready, so that accepting the review alone once more makes it applicable again.
+        if (WithdrawnAfterTheRun(run, profile))
+        {
+            var message = $"Run {runId} was accepted on the review of Model B alone, and you withdrew that acceptance for this project after the run started, "
+                + "so nothing was written. Run the task again to have it checked, or accept the review alone for the project once more and apply again.";
+            publisher.Note(Stages.Apply, message, NoteLevel.Warning);
+            return new DeliveryOutcome(false, message, run.State, run.Disposition, [], null, decision);
         }
 
         ApplyResult result;
@@ -406,6 +419,18 @@ public sealed partial class RunCoordinator
         var candidate = run.CurrentCandidateId is null ? null : store.FindCandidate(run.CurrentCandidateId);
         return new Located(workspace, candidate, profile, task, candidate is null && run.State == RunState.ReadyToApply ? $"Run {run.RunId} has no candidate." : null);
     }
+
+    /// <summary>
+    /// True when the run did not require checks, the acceptance of the review alone is not in force for its project
+    /// now, and it was withdrawn after the run started. A run with checks optional for every project is caught as well
+    /// when the acceptance was withdrawn meanwhile: /quality gates required withdraws it and requires checks for every
+    /// project at once, so such a candidate would not be accepted now either.
+    /// </summary>
+    private bool WithdrawnAfterTheRun(RunRecord run, RunProfile profile) =>
+        !profile.Policy.RequireGates
+        && !_services.Trust.IsReviewOnlyAccepted(run.ProjectPath)
+        && _services.Trust.ReviewOnlyWithdrawnAt(run.ProjectPath) is { } withdrawn
+        && withdrawn >= run.CreatedAt;
 
     /// <summary>The acceptance decision for a stored run, from what is recorded and what is on disk right now.</summary>
     private async Task<AcceptanceDecision> EvaluateStoredAsync(

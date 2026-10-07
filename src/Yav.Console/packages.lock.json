@@ -2,6 +2,12 @@
   "version": 2,
   "dependencies": {
     "net10.0-windows7.0": {
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "xi+BDjFpW+Sb+MHFHaH6Y/gV9I8BluFwRXc1QyCdoZbIK26eNiBeFuMTe/FMwc33G1wdHCyDg7CVTmb8OdQrMQ=="
+      },
       "PrettyPrompt": {
         "type": "Direct",
         "requested": "[6.0.5, )",
@@ -76,14 +82,14 @@
       "yav.adapters": {
         "type": "Project",
         "dependencies": {
-          "Yav.Core": "[0.1.0, )",
-          "Yav.Platform": "[0.1.0, )"
+          "Yav.Core": "[0.2.0, )",
+          "Yav.Platform": "[0.2.0, )"
         }
       },
       "yav.coordinator": {
         "type": "Project",
         "dependencies": {
-          "Yav.Core": "[0.1.0, )"
+          "Yav.Core": "[0.2.0, )"
         }
       },
       "yav.core": {
@@ -92,28 +98,28 @@
       "yav.platform": {
         "type": "Project",
         "dependencies": {
-          "Yav.Core": "[0.1.0, )"
+          "Yav.Core": "[0.2.0, )"
         }
       },
       "yav.storage": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite": "[10.0.12, )",
-          "Yav.Core": "[0.1.0, )"
+          "Yav.Core": "[0.2.0, )"
         }
       },
       "yav.validation": {
         "type": "Project",
         "dependencies": {
-          "Yav.Core": "[0.1.0, )",
-          "Yav.Platform": "[0.1.0, )"
+          "Yav.Core": "[0.2.0, )",
+          "Yav.Platform": "[0.2.0, )"
         }
       },
       "yav.workspace": {
         "type": "Project",
         "dependencies": {
-          "Yav.Core": "[0.1.0, )",
-          "Yav.Platform": "[0.1.0, )"
+          "Yav.Core": "[0.2.0, )",
+          "Yav.Platform": "[0.2.0, )"
         }
       },
       "Microsoft.Data.Sqlite": {

@@ -8,6 +8,11 @@ public sealed partial class YavDatabase : IProjectTrustStore, IJournalStore
     private const string SpeedKind = "paid-speed";
     private const string InPlaceKind = "in-place";
     private const string GapsKind = "workspace-gaps";
+    private const string ReviewOnlyKind = "review-only";
+
+    // When the acceptance of the review alone was last withdrawn for a project. It is not an acknowledgement and is
+    // not listed as one; /apply reads it to tell a candidate accepted under a withdrawn acceptance.
+    private const string ReviewOnlyWithdrawnKind = "review-only-withdrawn";
 
     public bool IsProjectTrusted(string projectPath) => Read(() => Query(
         "SELECT trusted FROM project_trust WHERE project_key = $key;",
@@ -69,14 +74,51 @@ public sealed partial class YavDatabase : IProjectTrustStore, IJournalStore
     public void AcknowledgeGaps(string projectPath, string gapsFingerprint, string statement) =>
         Acknowledge(GapsKind, ProjectKey(projectPath) + "|" + gapsFingerprint, statement);
 
-    /// <summary>Withdraws an acknowledgement, so the next run asks again.</summary>
+    public bool IsReviewOnlyAccepted(string projectPath) => IsAcknowledged(ReviewOnlyKind, ProjectKey(projectPath));
+
+    public void AcceptReviewOnly(string projectPath, string statement) => Acknowledge(ReviewOnlyKind, ProjectKey(projectPath), statement);
+
+    public bool WithdrawReviewOnly(string projectPath)
+    {
+        var subject = ProjectKey(projectPath);
+        return InTransaction(transaction =>
+        {
+            if (Write("DELETE FROM acknowledgements WHERE kind = $kind AND subject = $subject;", transaction, ("$kind", ReviewOnlyKind), ("$subject", subject)) == 0)
+            {
+                return false;
+            }
+
+            Write(
+                """
+                INSERT INTO acknowledgements (kind, subject, statement, acknowledged_at) VALUES ($kind, $subject, $statement, $at)
+                ON CONFLICT (kind, subject) DO UPDATE SET statement = excluded.statement, acknowledged_at = excluded.acknowledged_at;
+                """,
+                transaction,
+                ("$kind", ReviewOnlyWithdrawnKind),
+                ("$subject", subject),
+                ("$statement", "The acceptance of the review alone was withdrawn."),
+                ("$at", Stamp(_clock.GetUtcNow())));
+            return true;
+        });
+    }
+
+    public DateTimeOffset? ReviewOnlyWithdrawnAt(string projectPath) => Read(() => Query(
+        "SELECT acknowledged_at FROM acknowledgements WHERE kind = $kind AND subject = $subject;",
+        reader => (DateTimeOffset?)Moment(reader.GetString(0)),
+        null,
+        ("$kind", ReviewOnlyWithdrawnKind),
+        ("$subject", ProjectKey(projectPath))).FirstOrDefault());
+
+    /// <summary>Withdraws an acknowledgement, so a request in the shell asks again; yav run is blocked again.</summary>
     public bool Withdraw(string kind, string subject) => InTransaction(transaction =>
         Write("DELETE FROM acknowledgements WHERE kind = $kind AND subject = $subject;", transaction, ("$kind", kind), ("$subject", subject)) > 0);
 
+    /// <summary>What the user acknowledged, oldest first. When an acceptance was withdrawn is not listed: it is no acknowledgement.</summary>
     public IReadOnlyList<(string Kind, string Subject, string Statement, DateTimeOffset At)> ListAcknowledgements() => Read(() => Query(
-        "SELECT kind, subject, statement, acknowledged_at FROM acknowledgements ORDER BY acknowledged_at;",
+        "SELECT kind, subject, statement, acknowledged_at FROM acknowledgements WHERE kind <> $withdrawn ORDER BY acknowledged_at;",
         reader => (reader.GetString(0), reader.GetString(1), reader.GetString(2), Moment(reader.GetString(3))),
-        null));
+        null,
+        ("$withdrawn", ReviewOnlyWithdrawnKind)));
 
     public void Save(ApplyJournal journal) => InTransaction(transaction => Write(
         """

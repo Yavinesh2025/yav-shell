@@ -8,10 +8,161 @@ Your project is written by `/apply` and by nothing else.
 YAV Shell contains no model and no coding agent. It drives the agent programs you have installed
 (Codex, Claude Code) and uses the accounts those programs are signed in to.
 
-Contents: [Start](#start) · [First steps](#first-steps) · [What you type](#what-you-type) ·
+In short: run `yav.exe` once to install it, type `yav` in a console in the folder of a project, and
+type what you want done.
+
+Contents: [Install](#install) · [Start](#start) · [The first request](#the-first-request) · [What you type](#what-you-type) ·
 [Keys](#keys) · [A run](#a-run) · [Commands](#commands) · [Quality Lock](#quality-lock) ·
 [Checks of a project](#checks-of-a-project-yavprojectjson) · [Without a prompt](#without-a-prompt-yav-run) ·
 [JSON output](#json-output) · [Where things are kept](#where-things-are-kept) · [Limits of what YAV can know](#limits-of-what-yav-can-know)
+
+## Install
+
+YAV Shell is one file, `yav.exe`. It brings the .NET runtime along; besides it you need only the agent
+programs it drives (Codex, Claude Code, see [Installing the agents](#installing-the-agents)). Git is
+recommended: without it, a project is worked on in a protected copy, its ignore files are not honored
+and edits you make meanwhile cannot be merged.
+
+**Run `yav.exe`**: double-click it, or start it without arguments in a console. When YAV Shell is not
+installed for your user account, it says what installing changes and asks:
+
+```
+Install now? Y (or Enter) installs, N starts YAV without installing it
+```
+
+Installing
+
+* copies `yav.exe` to `%LOCALAPPDATA%\Programs\YavShell`, together with the license, the notices of
+  the components that are part of it, this documentation and the examples, which `yav.exe` carries in itself,
+* adds that directory to the PATH of your user account, so that `yav` starts YAV Shell in every console
+  that is started from then on,
+* adds YAV Shell to "Installed apps" of Windows, where it can be removed again.
+
+Nothing else is changed. No administrator rights are asked for, nothing is written outside your user
+account, and your data (`%LOCALAPPDATA%\YavShell`, see [Where things are kept](#where-things-are-kept))
+is left as it is: installing, replacing and removing leave its settings, history, workspaces and
+database alone, unless you ask `yav uninstall --remove-data` to remove them (below). (`yav` started
+without arguments opens that directory before it asks, and creates it on a first start, as every start
+does; a "no" in a console that was already open is kept there.) There is no entry in the Start menu:
+YAV runs in a console and is started with `yav`.
+
+`yav.exe` asks this only where somebody can answer: not when its input or output is redirected, and
+not in a console window that was started hidden. There the shell starts without asking, and
+`yav install` and `yav uninstall` do not wait for Enter when they are done.
+
+Double-clicked, `yav.exe` runs in the console window Windows opens for it; after the installation the
+window waits for Enter and closes. Started in a console you had open already, YAV installs and then
+starts the shell in that console.
+
+A console keeps the PATH it was started with. A console that is started after the installation finds
+`yav`, for example a new PowerShell window from the Start menu. One that was open already does not;
+in it, YAV is found after this line, which the installation prints with the directory it used:
+
+```powershell
+$env:Path += ';C:\Users\<you>\AppData\Local\Programs\YavShell'
+```
+
+A new tab or pane that you open in Windows Terminal 1.18 or later finds `yav` as well, also when Windows
+Terminal was running already: it reads the environment afresh for each one (its setting
+`compatibility.reloadEnvironmentVariables`, on unless you turned it off). A tab that was open already
+does not, and neither does `wt` started from such a tab.
+
+When you answer N in a console that was open already, YAV remembers it and no longer asks when it is
+started in a console; `yav install` installs it whenever you want. When that answer cannot be saved,
+YAV says so, and it asks again at the next start. A double-click asks every time YAV Shell is not
+installed.
+
+The offer never keeps the shell from starting. When something goes wrong in it - while it finds out
+what is installed, asks, installs or saves your answer - YAV says which of these it was doing and what
+went wrong, and starts the shell. An installation that is refused is said on the error output; in a
+console that was open already the shell starts after it, and a window Windows opened for `yav.exe`
+shows it until you press Enter and then closes (exit code 5).
+
+From a console:
+
+```
+yav install [--dir <path>] [--no-path] [--no-register]
+yav uninstall [--dir <path>] [--remove-data]
+```
+
+| | |
+|---|---|
+| `--dir <path>` | the installation directory. Default for `install`: where "Installed apps" says YAV Shell is installed, otherwise `%LOCALAPPDATA%\Programs\YavShell`. Default for `uninstall`: that installation, otherwise the folder of the `yav.exe` that runs, when it holds `yav-install.json`. Refused by `install`, before anything is written: the root of a drive; a directory in which the path of `yav.exe` would have 260 characters or more; a directory whose name holds `;`, unless you add `--no-path`; a directory that is not empty and holds no readable `yav-install.json` (or the `package-manifest.json` of 0.1.1); your data directory, a directory that holds it or lies inside it; and, while YAV Shell is installed in another directory, a different `--dir` unless you add `--no-register` (install there again, or remove that installation first). `--dir` followed by something that begins with `-` is refused as a `--dir` without a value (exit code 64); a directory whose name begins with a dash is named with `--dir=<path>` |
+| `--no-path` | leaves the PATH of your account as it is |
+| `--no-register` | does not add YAV Shell to "Installed apps" |
+| `--remove-data` | removes your data directory as well, and the API key YAV stored for it in the Windows Credential Manager. You are asked to type `yes`; where nobody can be asked, nothing is removed, the program neither |
+
+`yav uninstall`, and "Uninstall" under "Installed apps", remove what the installation put there - it
+is listed in `yav-install.json` in the installation directory - together with the PATH entry and the
+entry under "Installed apps". Files you put into that directory yourself stay, and so does the
+directory then. Your data stays, and YAV says where it was kept: to remove it as well, delete that
+folder (and the API key YAV stored, whose name in the Windows Credential Manager begins with
+`YavShell/`), or name `--remove-data`.
+
+`--remove-data` removes the data directory only when it is YAV's and nothing else's: it holds
+`yav.db`, and at its top level nothing but what YAV creates there - the files `yav.db`, `yav.db-wal`,
+`yav.db-shm`, `yav.db-journal`, `settings.json`, `settings.json.tmp-*`, `settings.unreadable-*.json`
+and `history.txt*`, and the folders `logs`, `workspaces`, `blobs`, `exports` and `schemas` (hidden
+files count as well); it is not the root of a drive or a folder of Windows or of your account, such
+as your profile or `%LOCALAPPDATA%`; and no other YAV has its database open. This is checked before
+you are asked, and when it does not hold, nothing is removed, the program neither, and YAV says why.
+It is checked again just before the directory is deleted; `settings.json` and `yav.db` go last, so a
+removal that stops part-way leaves a directory that `--remove-data` still takes. The API key is
+removed on its own and said on its own; when the data directory does not exist any more but a key is
+stored for it, you are asked about the key alone. Any answer but `yes` keeps your data and the key,
+and the program is removed all the same.
+
+Started from the installed program - as "Installed apps" does - the removal cannot delete the program
+that runs: it removes everything else first, and the program and its `yav-install.json` stay until it
+has ended. Then they are deleted, and the directory with them when nothing else is in it. A newer
+installation made into the same directory in the meantime is not deleted. The deletion is handed to
+a hidden command as the program ends, also when you close its window with the X button. When the path
+of the program holds `%`, `!` or `"`, YAV cannot hand it over safely and says so: delete the folder
+yourself once YAV Shell has ended (or, when files of yours stay in it, `yav.exe` and `yav-install.json`).
+
+One thing is elsewhere: the first start of each version of `yav.exe` unpacks the native SQLite library
+into `%TEMP%\.net\yav\<id>\` (about 2 MB; .NET does this for a program that is one file). Nothing of
+yours is in it. `yav uninstall` does not remove it; it can be deleted while no `yav.exe` runs.
+
+**Updating** is installing again: run the newer `yav.exe`. Double-clicked, it offers to replace an
+older version that is installed; in a console, `yav install` replaces it. `yav install` started from the
+installed program itself repairs the installation: the program stays as it is, and the files that
+belong with it, the PATH entry and the entry under "Installed apps" are put right. While YAV Shell runs
+from the installation directory in another console, it is neither replaced nor removed; leave it with
+`/exit` first.
+
+An installation of 0.1.1, which its `install.ps1` made and listed in `package-manifest.json`, is
+recognised: `yav install` updates it in its directory, and removes what 0.1.1 had and 0.2.0 does not
+(`uninstall.ps1` and `package-manifest.json` among it), and `yav uninstall` removes it. A Start menu
+entry that 0.1.1 made with `-Shortcut` (`YAV Shell` in the Start menu of your account) is not touched;
+delete it yourself.
+
+After the files are written, YAV starts the installed `yav.exe` once with `--version`. When it does
+not answer with its version, the PATH and "Installed apps" are left as they are, the message says why
+(it could not be started, gave no answer within 60 seconds, or ended with an exit code, with the first
+line of what it wrote to its error output), and `yav uninstall --dir "<dir>"` removes the files. Ctrl+C
+stops an installation between two files; YAV then says that `yav-install.json` names what may have
+been written, and that `yav install --dir "<dir>"` completes the installation and
+`yav uninstall --dir "<dir>"` removes it. A file whose writing was interrupted is left as
+`<name>.partial-<8 hex digits>`; the next `yav install` or `yav uninstall` deletes it.
+
+`yav install` and `yav uninstall` end with exit code 0 when they did what was asked, with 5 when they
+refused or failed (the reason is written to the error output), and with 64 for a command line they do
+not understand.
+
+`yav.exe` is not code-signed. After a download, Windows SmartScreen may stop it with "Windows protected
+your PC"; "More info" and then "Run anyway" start it. Compare the SHA-256 of the file with the one in
+`yav.exe.sha256` that comes with it before you do: in PowerShell, `Get-FileHash .\yav.exe`.
+
+On a PC where Smart App Control is on (Windows Security, App & browser control), Windows blocks programs
+that are not signed, however they are started, and offers no "Run anyway": `yav.exe` cannot be used
+there. Microsoft describes this in
+[Smart App Control](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview).
+
+A `yav.exe` that was built from the source tree (`scripts\build.ps1`) needs the files next to it and
+cannot install itself; `scripts\package.ps1` builds the one-file `dist\yav.exe`. Such a build removes
+only an installation you name with `--dir`; `yav uninstall` without it removes nothing there and ends
+with exit code 5.
 
 ## Start
 
@@ -21,26 +172,85 @@ yav "C:\Projects\My App"     the shell, with a project
 yav run --project <path> --task "<text>" [--json] [--apply] [--continue <task-id>]
 yav run --project <path> --prompt-file task.md [--json]
 yav doctor [--json]          what YAV needs, and what it found
+yav install [--dir <path>] [--no-path] [--no-register]
+                             install this yav.exe for your user account
+yav uninstall [--dir <path>] [--remove-data]
+                             remove the installation; your data stays
 yav --version | --help
 ```
 
 YAV runs inside the console you start it from: Windows Terminal, the console of PowerShell, or the
-console of CMD. It opens no window of its own.
+console of CMD. It opens no window of its own; double-clicked, it runs in the console window Windows
+opens for it. `yav` without arguments, started from a copy that is not installed, first offers to
+install it ([Install](#install)).
 
-Started from a place that is no project (the root of a drive, your profile, the Start menu), the shell
-starts without a project and waits for `/open <path>`.
+Started from a place that is no project (the root of a drive, your profile), the shell starts without
+a project. The first request then asks for the folder of the project, or you select one with `/open <path>`.
+As the answer to that question, a drive, your profile, the Desktop, Documents, Downloads or a folder of
+Windows is not taken, and the question is asked again; `/open <path>` selects such a folder deliberately.
+The request is then a task of its own, and a file you attached before goes with it.
 
-## First steps
+## The first request
 
-1. `yav doctor` shows whether the agents are installed and signed in, and what is missing.
-2. In the shell, `/models` lists what the providers offer for your accounts. Choose both roles:
-   `/models a codex-app-server <model>` and `/models b claude-cli <model>`.
-   YAV does not choose models for you and does not rank them.
-3. `/login` shows through which account each agent works and how that is billed, and asks you to
-   acknowledge the route once. YAV never sees a password or a token.
-4. `/test detect` proposes required checks from what the project contains (or write
-   `yav.project.json` yourself). Nothing runs before you approved it.
-5. Type what you want done.
+Start `yav` in the folder of a project and type what you want done:
+
+```
+YAV C:\Projects\MyApp> Fix the login bug and add regression tests.
+```
+
+That is all it takes. What a first run needs and only you can decide, the shell asks right there, one
+question at a time, and then it sends the request you typed. Your answers are kept, so the next request
+just runs. The first attempt shows what kept it from starting (the `[BLOCKED]` lines); the questions
+follow it.
+
+What the shell can ask, and only when it is needed:
+
+| When | It asks | Later, the same with |
+|---|---|---|
+| no project is selected | the folder of the project | `/open <path>` |
+| Model A or Model B is not chosen | a number from the list of the models the agents list for your accounts: model, name, agent, effort values, and which one the provider marks as its default | `/models a\|b <adapter> <model>` |
+| a model lists an effort value YAV cannot rank (Codex lists `ultra`) | the exact effort, one of the values the model lists | `/effort a\|b <value>` |
+| an agent is not signed in | for Codex, whether to start Codex's own sign-in. For Claude Code it asks nothing and says how to sign in with Claude Code itself (`claude`, or `claude auth login`) | `/login codex\|claude` |
+| an account route is not acknowledged | whether runs of YAV may use it, after it showed how the route is billed | `/login` |
+| the project has no approved check that is required | to approve the project's `yav.project.json`, or the checks YAV proposes from what the project contains; when there are none, you declined them, or what you approved requires no check, whether candidates of this project may be accepted on the review alone. That is not offered while the approved checks cannot be read | `/test trust`, `/test detect`, [review-only acceptance](#quality-lock) |
+| files ignored by Git would be absent from the isolated workspace | whether you accept that, after it showed which ones | `/open --accept-gaps` |
+
+* YAV does not choose models for you and does not rank them. The list is what the providers report;
+  the default is marked because the provider says so. For each provider the list names one interface:
+  for Codex the app server when it can be used, otherwise `codex exec`. `/models` lists all of them.
+* Model B reviews what Model A made, so it has to be another model: with Quality Lock and strict
+  policy (the defaults) the same model for both roles does not run, and the list does not take it.
+* What grants or acknowledges something - an account route, checks, review-only acceptance, ignored
+  files that stay behind - is answered with the word `yes` and Enter, never with a single key.
+* A question you decline, or leave without an answer, changes nothing, and the request is not sent.
+  Enter on an empty answer, or Ctrl+C, chooses nothing; Esc only clears what you typed. Three answers
+  that are not on the list choose nothing either. Send the request again to be asked again, or decide
+  with the command in the table. A file you attached to it stays attached to the next request.
+* YAV never sees a password or a token. The sign-in is the provider's own program.
+* What no question can settle - an agent that is not installed, an account route its provider does not
+  permit, a repository YAV cannot isolate - the run names, together with what to do, as it does for
+  every run. When no agent is installed at all, it says how to install one (below).
+* Nothing is asked in `yav run`, or when input or output is redirected: such a run ends as Blocked and
+  names what is missing ([Without a prompt](#without-a-prompt-yav-run)).
+
+Every answer can be changed later with the commands: `/models`, `/effort`, `/login`, `/test`,
+`/quality`, `/open --accept-gaps`. `yav doctor` shows what YAV needs and what it found, without a run.
+
+### Installing the agents
+
+YAV installs no agent and runs no installer. The vendors' own commands for Windows, run in PowerShell,
+need no administrator rights:
+
+| Agent | Install | Sign in |
+|---|---|---|
+| Codex CLI (OpenAI) | `powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 \| iex"` | `codex login` |
+| Claude Code (Anthropic) | `irm https://claude.ai/install.ps1 \| iex` | start `claude` and sign in in the browser, or `claude auth login` |
+
+Other ways the vendors name: `npm install -g @openai/codex`; `winget install Anthropic.ClaudeCode`, which
+does not update itself (`winget upgrade Anthropic.ClaudeCode`), and `npm install -g @anthropic-ai/claude-code`.
+Both installers change the PATH of your account, so start a new console afterwards, and then `yav` again.
+The vendors' documentation: [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) and
+[Claude Code](https://code.claude.com/docs/en/setup).
 
 ## What you type
 
@@ -158,8 +368,9 @@ is active, because they would change the run or need the console.
 | `/cd <path>` | change to a directory of the project, or to another project. *waits* |
 
 `--accept-gaps` records that you accept that files ignored by Git are absent from the isolated
-workspace. Without it, a run in such a project does not start until you accepted that or listed what to
-copy under `replicateIgnored`.
+workspace. Without it, a run in such a project does not start until you accepted that - a request
+typed in the shell asks for it - or listed what to copy under `replicateIgnored`. The acceptance holds
+for exactly the files it named: when other ignored files appear later, you are asked again.
 
 ### Models and policy
 
@@ -172,9 +383,9 @@ copy under `replicateIgnored`.
 | `/effort a\|b <value>\|maximum` | set it. A value the model does not list is refused; nothing is lowered for you |
 | `/login [codex\|claude]` | account route and billing; acknowledges the route; starts the provider's own sign-in when you are not signed in |
 | `/login claude --api-key`, `--forget-key` | keep an Anthropic API key in the Windows Credential Manager, or remove it |
-| `/quality` | Quality Lock and what a candidate has to pass |
+| `/quality` | Quality Lock and what a candidate has to pass, and whether review-only acceptance was accepted for the selected project |
 | `/quality lock\|strict on\|off` | |
-| `/quality gates required\|optional` | whether a project without approved checks may run |
+| `/quality gates required\|optional` | whether a project without an approved required check may run, for every project. `required` also withdraws the review-only acceptance of the selected project |
 | `/quality preexisting ask\|repair` | what happens to a required check that already failed before the task |
 | `/speed [standard\|provider]` | the provider's faster serving of the same model. Shown with its billing and used only after you typed `yes` |
 | `/adaptive [on\|off]` | off by default. When on, YAV asks at the start of each new task whether Model A may work at a lower effort for that task |
@@ -299,6 +510,30 @@ as Requested / Unverified and the run goes on.
 Quality Lock holds the configuration and the acceptance requirements. It cannot make a model's answer
 correct, and it cannot make two runs give the same result.
 
+**Required checks** are required unless you change that. A candidate is ready only when the review
+passed and every required check of the project passed for exactly that candidate, so a project without
+an approved required check does not run. (A check is required unless it says `"required": false`.)
+There are two ways out besides approving checks:
+
+* **Review-only acceptance for one project.** When a request in a project without an approved required
+  check cannot start, the shell offers it, and you accept it with `yes`. A candidate of that project is
+  then accepted on Model B's review alone, and every run says so. It applies only while the project has
+  no approved required check: once you approve one (`/test detect`, `/test trust`), checks are required
+  for it again, and should the project later require none, the acceptance applies again. An approved
+  check that is optional does not set it aside, because a run does not run optional checks.
+  `/quality` shows it, and `/quality gates required` withdraws it for the selected project.
+  * When the approved checks of the project cannot be read (the stored approval is damaged, or the
+    project's `yav.project.json` cannot be used), the acceptance does not stand in for them: the run
+    is blocked (`review-only-unknown`) until you correct the file or approve the checks again.
+  * When you withdraw the acceptance after a run, that run's candidate, which was accepted on the review
+    alone, is not applied: `/apply` writes nothing and says so. Run the task again to have it checked, or
+    accept the review alone once more and apply again.
+* **`/quality gates optional`**, for every project: a candidate of a project without an approved required
+  check is accepted on the review alone, everywhere, until you set `/quality gates required` again.
+
+A review is a second opinion of another model; it does not run the code. Review-only acceptance is
+what it says, and no replacement for checks that run.
+
 **Adaptive mode** is off unless you turn it on (`/adaptive on`). With it, YAV asks at the start of
 each new task whether Model A may work at a lower effort for that task, and uses a lower effort only
 when you named one. The model stays the same, Model B reviews at its own effort, and the run is
@@ -309,13 +544,22 @@ the checks that follow do not make the result the same as it would have been.
 
 "Maximum" effort resolves to the highest value the provider lists for the model. When a model lists a
 value YAV cannot rank - Codex lists `ultra`, which adds task delegation and is not simply "more than
-`max`" - YAV does not choose. The run does not start until you set the exact value with `/effort`.
+`max`" - YAV does not choose. The run does not start until you named the exact value: a request typed
+in the shell asks for it, or you set it with `/effort`.
 
 ## Checks of a project: `yav.project.json`
 
 The required checks of a project are commands **you approved**. A `yav.project.json` in the root of a
 project is a proposal until then: `/test trust` shows it and asks. When the file changes later, the
 version you approved stays in effect until you approve the new one.
+
+A request typed in a project without an approved required check asks for one: it shows the project's
+`yav.project.json` when there is one, otherwise what `/test detect` proposes from what the project
+contains, and nothing runs before you typed `yes`. Approved proposals are written to
+`yav.project.json` when the project has none, so that they can be kept with the project. When there is
+nothing to approve, you declined, or what you approved requires no check, it offers
+[review-only acceptance](#quality-lock) for the project; while the approved checks cannot be read, it
+does not.
 
 ```jsonc
 {
@@ -359,7 +603,11 @@ Anything unknown in the file is an error, because the file decides which command
 ## Without a prompt: `yav run`
 
 `yav run` performs one request and ends. Nobody can be asked, so nothing is granted: when an agent
-asks for approval, the run ends as **Approval Required**.
+asks for approval, the run ends as **Approval Required**. The questions of a first request are not
+asked either: a run that needs a decision of yours - the models, an account route, the checks of the
+project, ignored files - ends as **Blocked** (exit code 2), and its result names what is missing
+(`problems`). Decide it in the shell, where a typed request asks for it, or with the commands; a
+review-only acceptance you gave for a project holds for `yav run` as well.
 
 | Exit code | |
 |---|---|
@@ -379,8 +627,9 @@ Without `--apply` the project is not changed; the candidate waits in its workspa
 The shell reads from a pipe or a file as well: `yav <path> < commands.txt`. Lines are then read one
 after the other, each after the run before it has ended, and the end of the input lets a run finish.
 Questions are answered with "no", because nobody is there to answer them, and a run in which an
-agent asks for approval ends as Approval Required. The same holds when only the output is redirected
-(`yav > out.txt`): a question that nobody can see is not asked.
+agent asks for approval ends as Approval Required. The questions of a first request are not asked: a
+request that needs a decision of yours ends as Blocked. The same holds when only the output is
+redirected (`yav > out.txt`): a question that nobody can see is not asked.
 
 ## JSON output
 
@@ -446,6 +695,18 @@ Everything YAV keeps is in one directory of your user account, outside every pro
 
 An API key, when you store one, is in the Windows Credential Manager. Any program that runs as you can
 read it there; that is a boundary of the operating system, not of YAV.
+
+The program is kept apart from your data: in the installation directory (`%LOCALAPPDATA%\Programs\YavShell`
+unless you named another one), with `yav-install.json`, the list of what the installation put there.
+Nothing about your work is written into it, and removing YAV Shell leaves your data where it is unless
+you ask for it to be removed (`yav uninstall --remove-data`, which removes the data directory only when
+it holds nothing YAV did not create; see [Install](#install)). The API key YAV stored for it is
+removed with it, or by `/login claude --forget-key`.
+
+One thing is elsewhere: the first start of each version of `yav.exe` unpacks the native SQLite library
+into `%TEMP%\.net\yav\<id>\` (about 2 MB; .NET does this for a program that is one file). Nothing of
+yours is in it. A folder stays there for each version; `yav uninstall` does not remove it, and it can
+be deleted while no `yav.exe` runs.
 
 YAV sends nothing anywhere. It has no telemetry; the setting exists and is off, and this version
 contains no code that transmits data. Your requests, and what the agents read, go to the providers of

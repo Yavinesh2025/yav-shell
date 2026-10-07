@@ -67,7 +67,7 @@
     The directory of a run that was set up, for the parts run, resume and inspect: the one the setup made below
     artifacts\live-run and printed.
 .PARAMETER Yav
-    The program to drive, at setup. Default: the newest package in dist. The parts after setup take it from
+    The program to drive, at setup. Default: the package, dist\yav.exe. The parts after setup take it from
     live-run.json.
 .PARAMETER Apply
     Apply the change with /apply in the part inspect.
@@ -835,7 +835,7 @@ if ($setsUp) {
     }
 
     Assert-LiveRoutesCover -Routes $routes -ModelA $ModelA -ModelB $ModelB
-    if (-not $Yav) { $Yav = Get-ChildItem -LiteralPath (Join-Path $RepoRoot 'dist') -Directory -Filter 'yav-shell-*-win-x64' | Sort-Object LastWriteTime | Select-Object -Last 1 | ForEach-Object { Join-Path $_.FullName 'yav.exe' } }
+    if (-not $Yav) { $Yav = Join-Path $RepoRoot 'dist\yav.exe' }
     if (-not $Yav -or -not (Test-Path -LiteralPath $Yav)) { throw 'yav.exe was not found. Build the package with scripts\package.ps1, or name the program with -Yav.' }
     $Yav = (Resolve-Path -LiteralPath $Yav).ProviderPath
 }

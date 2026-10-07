@@ -248,6 +248,42 @@ internal static partial class NativeMethods
     [LibraryImport("kernel32.dll", SetLastError = true)]
     internal static partial nint OpenProcess(uint dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, int dwProcessId);
 
+    [LibraryImport("kernel32.dll", EntryPoint = "QueryFullProcessImageNameW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static unsafe partial bool QueryFullProcessImageName(nint hProcess, uint dwFlags, char* lpExeName, ref uint lpdwSize);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    internal static unsafe partial uint GetConsoleProcessList(uint* lpdwProcessList, uint dwProcessCount);
+
+    internal const byte VER_NT_WORKSTATION = 1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal unsafe struct OSVERSIONINFOEXW
+    {
+        public uint dwOSVersionInfoSize;
+        public uint dwMajorVersion;
+        public uint dwMinorVersion;
+        public uint dwBuildNumber;
+        public uint dwPlatformId;
+        public fixed ushort szCSDVersion[128];
+        public ushort wServicePackMajor;
+        public ushort wServicePackMinor;
+        public ushort wSuiteMask;
+        public byte wProductType;
+        public byte wReserved;
+    }
+
+    /// <summary>The version of Windows as it is, not as a manifest of the program lets it be seen. 0 is success.</summary>
+    [LibraryImport("ntdll.dll")]
+    internal static unsafe partial int RtlGetVersion(OSVERSIONINFOEXW* lpVersionInformation);
+
+    internal const uint WM_SETTINGCHANGE = 0x001A;
+    internal const uint SMTO_ABORTIFHUNG = 0x0002;
+    internal static readonly nint HWND_BROADCAST = 0xFFFF;
+
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageTimeoutW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    internal static partial nint SendMessageTimeout(nint hWnd, uint msg, nuint wParam, string lParam, uint fuFlags, uint uTimeout, out nuint lpdwResult);
+
     [LibraryImport("advapi32.dll", EntryPoint = "CredReadW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool CredRead(string target, uint type, uint reservedFlag, out nint credentialPtr);

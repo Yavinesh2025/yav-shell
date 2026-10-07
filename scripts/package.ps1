@@ -1,134 +1,93 @@
 <#
 .SYNOPSIS
-    Builds the portable package of YAV Shell and, where the tool for it is installed, the installer.
+    Builds the package of YAV Shell: dist\yav.exe, one program that installs itself.
 .DESCRIPTION
-    1. Publishes yav.exe for Windows x64 together with the .NET runtime, so that nothing has to be
-       installed separately.
-    2. Puts the program, the documentation, the examples and the per-user installer scripts into
-       dist\yav-shell-<version>-win-x64 and writes a manifest with the SHA-256 of every file.
-    3. Packs that directory into dist\yav-shell-<version>-win-x64-portable.zip.
-    4. Builds dist\yav-shell-<version>-setup.exe from installer\yav-shell.iss when Inno Setup is
-       installed. Otherwise it says that no installer was built.
+    1. Runs the automated tests (fixtures only; no inference is requested), unless -SkipTests.
+    2. Publishes yav.exe for Windows x64 as one file that holds everything it needs: the .NET runtime, the
+       native SQLite library, and what 'yav install' puts next to it (license, notices, documentation,
+       examples). Nothing has to be installed separately, and the file runs from wherever it is.
+    3. Writes dist\yav.exe.sha256, in the format sha256sum reads ("<sha256>  yav.exe").
 
-    Nothing is code-signed. The manifest and the output of this script say so.
+    Started, dist\yav.exe offers to install itself for the current user; 'yav.exe install' does it without
+    asking. Nothing is code-signed. The output of this script says so, and Windows may warn when a copy that
+    was downloaded is started for the first time.
 .PARAMETER SkipTests
     Does not run the automated tests before packaging.
-.PARAMETER Layout
-    'folder' (default) keeps the files next to yav.exe. 'single-file' packs them into yav.exe, which
-    starts slower because it unpacks native libraries when it starts; see docs\performance.md.
+.PARAMETER HangSeconds
+    Given to scripts\test.ps1: when no test has begun or ended for that many seconds, the tests end and name
+    the tests that were still running. 0, the default, sets no limit.
 #>
 [CmdletBinding()]
 param(
     [switch]$SkipTests,
-    [ValidateSet('folder', 'single-file')]
-    [string]$Layout = 'folder'
+    [ValidateRange(0, 86400)]
+    [int]$HangSeconds = 0
 )
 
 . "$PSScriptRoot\env.ps1"
-. (Join-Path $RepoRoot 'installer\YavInstall.ps1')
+. "$PSScriptRoot\package-tools.ps1"
 
 $console = Join-Path $RepoRoot 'src\Yav.Console\Yav.Console.csproj'
-[xml]$props = Get-Content (Join-Path $RepoRoot 'Directory.Build.props') -Raw
-$version = [string]($props.Project.PropertyGroup | Where-Object { $_.PSObject.Properties['Version'] } | Select-Object -First 1).Version
-if (-not $version) { throw 'The version could not be read from Directory.Build.props.' }
+$version = Get-YavProductVersion -Repository $RepoRoot
 
 if (-not $SkipTests) {
     Write-Host 'Running the automated tests (fixtures only; no inference is requested)...'
-    & (Join-Path $PSScriptRoot 'test.ps1') -Configuration Release
+    & (Join-Path $PSScriptRoot 'test.ps1') -Configuration Release -HangSeconds $HangSeconds
 }
 
-$name = "yav-shell-$version-win-x64"
 $dist = Join-Path $RepoRoot 'dist'
-$stage = Join-Path $dist $name
-$publish = Join-Path $RepoRoot "artifacts\package\$Layout"
-foreach ($path in $stage, $publish) {
-    if (Test-Path $path) { Remove-Item -Path $path -Recurse -Force }
-}
+$publish = Join-Path $RepoRoot 'artifacts\package\single-file'
+if (Test-Path $publish) { Remove-Item -Path $publish -Recurse -Force }
 
+# The native SQLite library goes into the file as well. It is unpacked into a directory of the user when the
+# program starts for the first time; see docs\performance.md for what that costs.
 $arguments = @(
     'publish', $console, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '--nologo', '-v', 'minimal',
     '-o', $publish,
+    '-p:PublishSingleFile=true',
+    '-p:IncludeNativeLibrariesForSelfExtract=true',
     '-p:PublishReadyToRun=true',
     '-p:DebugType=none', '-p:DebugSymbols=false',
     '-p:GenerateDocumentationFile=false'
 )
-if ($Layout -eq 'single-file') {
-    $arguments += @('-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true')
-}
 
-Write-Host "Publishing yav.exe $version ($Layout, self-contained, win-x64)..."
+Write-Host "Publishing yav.exe $version (one file, self-contained, win-x64)..."
 & $DotNet @arguments
 if ($LASTEXITCODE -ne 0) { throw "Publishing failed with exit code $LASTEXITCODE." }
-if (-not (Test-Path (Join-Path $publish 'yav.exe'))) { throw "yav.exe was not produced in $publish." }
 
-New-Item -ItemType Directory -Path $stage -Force | Out-Null
-Copy-Item -Path (Join-Path $publish '*') -Destination $stage -Recurse -Force
-
-foreach ($directory in 'docs', 'examples') {
-    $from = Join-Path $RepoRoot $directory
-    if (Test-Path $from) { Copy-Item -Path $from -Destination (Join-Path $stage $directory) -Recurse -Force }
+# Anything next to yav.exe would be missing wherever the program is copied without it.
+$published = @(Get-ChildItem -LiteralPath $publish -Recurse -File)
+$others = @($published | Where-Object { $_.Name -ne 'yav.exe' })
+if (-not ($published | Where-Object { $_.Name -eq 'yav.exe' })) { throw "yav.exe was not produced in $publish." }
+if ($others.Count -gt 0) {
+    throw "The program is not one file: publishing also produced $(($others | ForEach-Object { $_.Name }) -join ', ')."
 }
 
-foreach ($file in 'README.md', 'LICENSE.txt', 'THIRD-PARTY-NOTICES.md') {
-    $from = Join-Path $RepoRoot $file
-    if (Test-Path $from) { Copy-Item -Path $from -Destination $stage -Force }
+New-Item -ItemType Directory -Path $dist -Force | Out-Null
+$program = Join-Path $dist 'yav.exe'
+foreach ($old in $program, "$program.sha256") {
+    if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Force }
 }
 
-foreach ($file in 'install.ps1', 'uninstall.ps1', 'YavInstall.ps1') {
-    Copy-Item -Path (Join-Path $RepoRoot "installer\$file") -Destination $stage -Force
+Copy-Item -LiteralPath (Join-Path $publish 'yav.exe') -Destination $program
+$hash = Write-YavChecksumFile -Path $program
+
+$reported = (& $program --version | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $reported -ne "yav $version") {
+    throw "dist\yav.exe did not start as expected: it ended with exit code $LASTEXITCODE and said '$reported'."
 }
 
-$signature = Get-AuthenticodeSignature -FilePath (Join-Path $stage 'yav.exe')
-$signed = $signature.Status -eq 'Valid'
-$files = @(Get-YavFileHashes -Directory $stage)
-$manifest = [ordered]@{
-    product       = 'YAV Shell'
-    version       = $version
-    runtime       = 'win-x64'
-    layout        = $Layout
-    selfContained = $true
-    signed        = $signed
-    signature     = if ($signed) { $signature.SignerCertificate.Subject } else { 'none: this package is not code-signed' }
-    builtAt       = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-    builtWith     = (& $DotNet --version)
-    files         = $files
-}
-$manifest | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path $stage 'package-manifest.json') -Encoding utf8
-
-$zip = Join-Path $dist "$name-portable.zip"
-if (Test-Path $zip) { Remove-Item $zip -Force }
-Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
-$zipHash = Get-YavSha256 -Path $zip
-"$zipHash  $([IO.Path]::GetFileName($zip))" | Set-Content -Path "$zip.sha256" -Encoding ascii
-
-$setup = $null
-$iscc = @(
-    (Get-Command iscc.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
-    (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
-    (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'),
-    (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe')
-) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
-
-if ($iscc) {
-    Write-Host "Building the installer with $iscc..."
-    & $iscc "/DAppVersion=$version" "/DSourceDir=$stage" "/DOutputDir=$dist" (Join-Path $RepoRoot 'installer\yav-shell.iss') | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE." }
-    $setup = Join-Path $dist "yav-shell-$version-setup.exe"
-    if (-not (Test-Path $setup)) { throw "Inno Setup reported success, but $setup does not exist." }
-    $setupHash = Get-YavSha256 -Path $setup
-    "$setupHash  $([IO.Path]::GetFileName($setup))" | Set-Content -Path "$setup.sha256" -Encoding ascii
+$signature = Get-AuthenticodeSignature -FilePath $program
+$status = [string]$signature.Status
+# A signature that is there but not valid (HashMismatch, NotTrusted, UnknownError, ...) is not "no signature".
+if ($status -ne 'Valid' -and $status -ne 'NotSigned') {
+    throw "The signature of dist\yav.exe is not valid: $status. $($signature.StatusMessage)"
 }
 
-$size = (Get-ChildItem $stage -Recurse -File | Measure-Object -Property Length -Sum).Sum
 Write-Host ''
-Write-Host "Package:   $stage  ($($files.Count) files, $([Math]::Round($size / 1MB, 1)) MB)"
-Write-Host "Portable:  $zip  ($([Math]::Round((Get-Item $zip).Length / 1MB, 1)) MB, SHA-256 $zipHash)"
-if ($setup) {
-    Write-Host "Installer: $setup"
-}
-else {
-    Write-Host 'Installer: NOT BUILT. Inno Setup 6 is not installed; installer\yav-shell.iss is the script for it.'
-    Write-Host '           The package installs without it: run install.ps1 from the unpacked package.'
-}
-
-Write-Host "Signed:    $(if ($signed) { 'yes, by ' + $signature.SignerCertificate.Subject } else { 'NO. Nothing in this package is code-signed.' })"
+Write-Host "Package:   $program  (version $version, $([Math]::Round((Get-Item $program).Length / 1MB, 1)) MB)"
+Write-Host "SHA-256:   $hash  (in $program.sha256)"
+Write-Host "Signed:    $(if ($status -eq 'Valid') { 'yes, by ' + $signature.SignerCertificate.Subject } else { 'NO. yav.exe is not code-signed.' })"
+Write-Host ''
+Write-Host 'Started, yav.exe offers to install itself for your account; yav.exe install does it without asking.'
+Write-Host 'scripts\verify-package.ps1 checks the package the way a machine without .NET would use it.'

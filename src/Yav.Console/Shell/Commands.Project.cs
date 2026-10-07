@@ -44,22 +44,28 @@ public sealed partial class InteractiveShell
             return;
         }
 
+        var from = command.Name == "cd" && _session.ProjectPath is not null ? _session.ProjectPath : Environment.CurrentDirectory;
+        await OpenProjectAsync(path, from, flags.Contains("--accept-gaps"), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Selects a project as /open does: the directory has to exist. False when it was not selected; what was wrong was said.</summary>
+    private async Task<bool> OpenProjectAsync(string path, string from, bool acceptGaps, CancellationToken cancellationToken)
+    {
         string full;
         try
         {
-            var from = command.Name == "cd" && _session.ProjectPath is not null ? _session.ProjectPath : Environment.CurrentDirectory;
             full = Path.GetFullPath(path, from);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
             _ui.Error($"'{path}' is not a path: {ex.Message}");
-            return;
+            return false;
         }
 
         if (!Directory.Exists(full))
         {
             _ui.Error($"The directory '{full}' does not exist. The project was not changed.");
-            return;
+            return false;
         }
 
         var changed = !string.Equals(_session.ProjectPath, full, StringComparison.OrdinalIgnoreCase);
@@ -79,13 +85,14 @@ public sealed partial class InteractiveShell
             _ui.Warn("This looks like a system or profile directory rather than a project. An isolated workspace would copy all of it.");
         }
 
-        await DescribeProjectAsync(full, flags.Contains("--accept-gaps"), cancellationToken).ConfigureAwait(false);
+        await DescribeProjectAsync(full, acceptGaps, cancellationToken).ConfigureAwait(false);
         if (changed)
         {
             RestoreLastRun();
         }
 
         Save(settings => settings with { LastProject = full });
+        return true;
     }
 
     private async Task DescribeProjectAsync(string project, bool acceptGaps, CancellationToken cancellationToken)
@@ -141,15 +148,13 @@ public sealed partial class InteractiveShell
             return;
         }
 
-        var fingerprint = RunCoordinator.GapsFingerprint(inspection.EquivalenceGaps);
         if (acceptGaps)
         {
-            _services.Database.AcknowledgeGaps(project, fingerprint, string.Join(" ", inspection.EquivalenceGaps));
-            _ui.Say("  Accepted for this project: " + string.Join(" ", inspection.EquivalenceGaps));
+            AcceptGaps(project, inspection.EquivalenceGaps);
             return;
         }
 
-        if (_services.Database.AreGapsAcknowledged(project, fingerprint))
+        if (_services.Database.AreGapsAcknowledged(project, RunCoordinator.GapsFingerprint(inspection.EquivalenceGaps)))
         {
             _ui.Muted("  Accepted by you earlier: " + string.Join(" ", inspection.EquivalenceGaps));
             return;
@@ -157,6 +162,13 @@ public sealed partial class InteractiveShell
 
         _ui.Warn("  The isolated workspace would differ from the project: " + string.Join(" ", inspection.EquivalenceGaps));
         _ui.Muted($"  A run starts once you accepted that (/open \"{project}\" --accept-gaps) or listed what to copy under replicateIgnored in {_services.Validation.ConfigurationFileName}.");
+    }
+
+    /// <summary>Records that the user accepts exactly these differences between the project and its isolated workspace.</summary>
+    private void AcceptGaps(string project, IReadOnlyList<string> gaps)
+    {
+        _services.Database.AcknowledgeGaps(project, RunCoordinator.GapsFingerprint(gaps), string.Join(" ", gaps));
+        _ui.Say("  Accepted for this project: " + string.Join(" ", gaps));
     }
 
     private async Task NewTaskAsync()

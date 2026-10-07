@@ -117,7 +117,12 @@ public class RunPipelineTests
         var outcome = await harness.RunAsync("Why does the app print one?");
 
         harness.AssertEnded(RunOutcomeKind.Completed, outcome);
-        Assert.Equal(RunDisposition.NoChanges, harness.Database.FindRun(outcome.RunId)!.Disposition);
+        var stored = harness.Database.FindRun(outcome.RunId)!;
+        Assert.Equal(RunDisposition.NoChanges, stored.Disposition);
+
+        // The run is kept as completed, not as one that is still being checked and would need reconciling later.
+        Assert.Equal(RunState.Completed, stored.State);
+        Assert.DoesNotContain(harness.Observer.Events.OfType<StageNote>(), note => note.Message.Contains("cannot move", StringComparison.Ordinal));
         Assert.Equal("The app prints one because app.txt contains one.", outcome.FinalMessage);
         Assert.Single(harness.Agents.CodexRequests("turn/start"));
     }

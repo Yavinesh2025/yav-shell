@@ -1,16 +1,16 @@
 # Test results
 
-The complete run of the automated tests on 2026-09-30 10:56 UTC, written by `scripts\summarize-tests.ps1`.
+The complete run of the automated tests on 2026-10-07 11:15 UTC, written by `scripts\summarize-tests.ps1`.
 The agents were the scripted stand-in: no test sends a request to a model. The tests that talk to the
 installed agents are not part of this run; `docs\verification.md` says what they found.
 
 | | |
 |---|---:|
-| Tests | 2312 |
-| Passed | 2312 |
+| Tests | 2612 |
+| Passed | 2612 |
 | Failed | 0 |
 | Not run | 0 |
-| Time | 9.9 minutes |
+| Time | 9.6 minutes |
 
 | Class | Passed | Failed |
 |---|---:|---:|
@@ -34,9 +34,9 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Console.ApprovalAnswerTests | 35 | 0 |
 | Console.ApprovalDescriptionTests | 14 | 0 |
 | Console.ArgumentSplittingTests | 7 | 0 |
-| Console.CliCommandTests | 31 | 0 |
+| Console.CliCommandTests | 37 | 0 |
 | Console.CommandCatalogTests | 31 | 0 |
-| Console.CommandLineTests | 27 | 0 |
+| Console.CommandLineTests | 51 | 0 |
 | Console.InputClassifierTests | 21 | 0 |
 | Console.InputCompletionTests | 25 | 0 |
 | Console.JsonOutputTests | 36 | 0 |
@@ -46,11 +46,12 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Console.RecordedRequestTests | 1 | 0 |
 | Console.RunEventFormatterTests | 51 | 0 |
 | Console.ScreenTests | 246 | 0 |
-| Console.SettingsStoreTests | 7 | 0 |
+| Console.SettingsStoreTests | 8 | 0 |
 | Console.ShellLifetimeTests | 4 | 0 |
 | Console.ShellModelCommandTests | 59 | 0 |
 | Console.ShellRecordCommandTests | 65 | 0 |
 | Console.ShellRunCommandTests | 61 | 0 |
+| Console.ShellSetupTests | 39 | 0 |
 | Console.ShellTests | 37 | 0 |
 | Coordinator.AdaptiveModeTests | 5 | 0 |
 | Coordinator.ApprovalTests | 6 | 0 |
@@ -68,6 +69,7 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Coordinator.ProtectedChangeTests | 3 | 0 |
 | Coordinator.RepairLoopTests | 16 | 0 |
 | Coordinator.ReviewerBoundaryTests | 4 | 0 |
+| Coordinator.ReviewOnlyTests | 14 | 0 |
 | Coordinator.RunPipelineTests | 13 | 0 |
 | Coordinator.SafeguardTests | 18 | 0 |
 | Coordinator.SessionSlotTests | 4 | 0 |
@@ -84,7 +86,7 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Core.ProfileResolverTests | 33 | 0 |
 | Core.PromptBuilderTests | 19 | 0 |
 | Core.ReviewOutputParserTests | 22 | 0 |
-| Core.RunStateMachineTests | 21 | 0 |
+| Core.RunStateMachineTests | 22 | 0 |
 | Core.RuntimeTemplateTests | 4 | 0 |
 | Core.SessionUsageTrackerTests | 6 | 0 |
 | Core.TerminalSanitizerTests | 59 | 0 |
@@ -92,16 +94,22 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Core.TokenCountsTests | 4 | 0 |
 | EndToEnd.ConsoleKeyTests | 5 | 0 |
 | EndToEnd.ConsoleMeasurements | 2 | 0 |
-| EndToEnd.ExecutableTests | 23 | 0 |
+| EndToEnd.ExecutableTests | 24 | 0 |
 | EndToEnd.InteractiveConsoleTests | 24 | 0 |
 | EndToEnd.ShellDriverTests | 17 | 0 |
+| Packaging.BuildScriptTests | 60 | 0 |
 | Packaging.ExamplesTests | 7 | 0 |
-| Packaging.InstallerScriptTests | 52 | 0 |
+| Packaging.InstallCommandTests | 66 | 0 |
+| Packaging.InstallerTests | 53 | 0 |
+| Packaging.InstallOfferTests | 51 | 0 |
 | Packaging.LiveRunPartTests | 4 | 0 |
 | Packaging.LiveRunRouteTests | 25 | 0 |
 | Packaging.LiveRunRulesTests | 20 | 0 |
 | Packaging.LiveRunScriptTests | 102 | 0 |
+| Packaging.PackageFilesTests | 3 | 0 |
+| Packaging.PathListTests | 18 | 0 |
 | Packaging.VersionTests | 3 | 0 |
+| Packaging.WindowsInstallSystemTests | 13 | 0 |
 | Platform.CommandLineTests | 18 | 0 |
 | Platform.CredentialStoreTests | 13 | 0 |
 | Platform.ExecutableResolverTests | 17 | 0 |
@@ -110,7 +118,7 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Storage.DatabaseLifecycleTests | 3 | 0 |
 | Storage.JournalStoreTests | 5 | 0 |
 | Storage.RunStoreTests | 18 | 0 |
-| Storage.TrustStoreTests | 6 | 0 |
+| Storage.TrustStoreTests | 8 | 0 |
 | Support.TempDirectoryTests | 2 | 0 |
 | Validation.ConfigurationParsingTests | 19 | 0 |
 | Validation.ConfigurationTrustTests | 7 | 0 |

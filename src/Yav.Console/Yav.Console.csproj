@@ -32,4 +32,15 @@
     <InternalsVisibleTo Include="Yav.Tests" />
   </ItemGroup>
 
+  <!--
+    What 'yav install' puts next to yav.exe. It is part of yav.exe itself, so that the program is one file that
+    installs itself. The names below "package/" are the paths in the installation directory.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\LICENSE.txt;..\..\THIRD-PARTY-NOTICES.md;..\..\README.md" LogicalName="package/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\docs\*.md" LogicalName="package/docs/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\licenses\*.txt" LogicalName="package/licenses/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\examples\**\*" LogicalName="package/examples/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

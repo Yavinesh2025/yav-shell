@@ -231,6 +231,7 @@ public sealed partial class InteractiveShell
         }
 
         var answer = await _input.AskAsync(question + " Type yes to confirm: ", cancellationToken).ConfigureAwait(false);
+        _confirmUnanswered = answer is null;
         var confirmed = string.Equals(answer?.Trim(), "yes", StringComparison.OrdinalIgnoreCase);
         if (!confirmed)
         {

@@ -142,6 +142,18 @@ public sealed class ConsoleHost
         }
     }
 
+    /// <summary>
+    /// How many processes use the console of this process, this one included. One means that Windows made the
+    /// console for this process alone, as it does when the process is started from Explorer, the Start menu, the Run
+    /// dialog or "Installed apps", not from a shell. Zero when the process has no console.
+    /// </summary>
+    public static unsafe int ProcessesSharingConsole()
+    {
+        // Only the number is wanted. A list that is too short is not filled, but the number is still returned.
+        var list = stackalloc uint[4];
+        return (int)NativeMethods.GetConsoleProcessList(list, 4);
+    }
+
     private static uint? ReadMode(nint handle) => NativeMethods.GetConsoleMode(handle, out var mode) ? mode : null;
 
     private static string DescribeHost()

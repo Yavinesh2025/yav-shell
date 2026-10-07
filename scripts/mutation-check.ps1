@@ -5,7 +5,8 @@
     Each mutation replaces a fragment of production code with a deliberately wrong one, runs the tests
     that are supposed to protect that behavior, and restores the file. A mutation that the tests do not
     notice is reported as SURVIVED, which means the behavior is not really protected.
-    The working tree is always restored, also when a run is interrupted.
+    A mutation that makes a test hang is ended by a time limit (-HangSeconds) and reported as KILLED by it:
+    the tests did not pass. The working tree is always restored, also when a run is interrupted.
 #>
 [CmdletBinding()]
 param(
@@ -14,7 +15,11 @@ param(
     # Leaves out that many mutations from the beginning of the list, to go on where a run ended.
     [int]$Skip = 0,
     # Makes no more than that many mutations. 0 makes all that are left.
-    [int]$Take = 0
+    [int]$Take = 0,
+    # When no test has begun or ended for that many seconds, the test platform ends the tests of the mutation.
+    # 0 sets no limit.
+    [ValidateRange(0, 86400)]
+    [int]$HangSeconds = 600
 )
 
 . "$PSScriptRoot\env.ps1"
@@ -26,6 +31,346 @@ $mutations = @(
         Find    = 'if (!NativeMethods.UpdateProcThreadAttribute(attributeList, 0, NativeMethods.PROC_THREAD_ATTRIBUTE_JOB_LIST, (nint)(&jobHandle), nint.Size, 0, 0))'
         Replace = 'if (jobHandle == 0 && nint.Size < 0)'
         Filter  = 'FullyQualifiedName~ProcessRunnerTests'
+    },
+    @{
+        Name    = 'a build of the source tree removes the installation of the user'
+        File    = 'src\Yav.Console\Install\InstallCommand.cs'
+        Find    = '        if (!world.IsSingleFile && options.InstallDirectory is null)'
+        Replace = '        if (!world.IsSingleFile && options.InstallDirectory is null && options.RemoveData && !options.RemoveData)'
+        Filter  = 'FullyQualifiedName~InstallCommandTests.A_build_of_the_source_tree_removes_only'
+    },
+    @{
+        Name    = 'dir takes the next option for its value'
+        File    = 'src\Yav.Console\Cli\CommandLine.cs'
+        Find    = '                    if (inline is null && index + 1 < arguments.Count && arguments[index + 1].StartsWith(''-''))'
+        Replace = '                    if (inline is null && index + 1 < arguments.Count && arguments[index + 1].Length == 0)'
+        Filter  = 'FullyQualifiedName~CommandLineTests'
+    },
+    @{
+        Name    = 'a data directory that holds files of someone else is removed'
+        File    = 'src\Yav.Console\Install\DataDirectory.cs'
+        Find    = '            if (!own)'
+        Replace = '            if (!own && own)'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'a database another yav has open does not stop the question'
+        File    = 'src\Yav.Console\Install\DataDirectory.cs'
+        Find    = '        if (InUse(Path.Combine(full, "yav.db")) is { } use)'
+        Replace = '        if (InUse(Path.Combine(full, "yav.db")) is { } use && use.Length < 0)'
+        Filter  = 'FullyQualifiedName~InstallCommandTests.A_database_another_yav'
+    },
+    @{
+        Name    = 'the data directory is removed without being looked at again'
+        File    = 'src\Yav.Console\Install\DataDirectory.cs'
+        Find    = '        if (Problem(home) is { } problem)
+        {
+            throw new InstallException(problem + " Nothing was removed.");
+        }'
+        Replace = '        if (home.Length < 0)
+        {
+            throw new InstallException(" Nothing was removed.");
+        }'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'the database and the settings are not removed last'
+        File    = 'src\Yav.Console\Install\DataDirectory.cs'
+        Find    = '                if (!string.Equals(entry.FullName, database, StringComparison.OrdinalIgnoreCase) && !string.Equals(entry.FullName, settings, StringComparison.OrdinalIgnoreCase))'
+        Replace = '                if (!string.Equals(entry.FullName, database, StringComparison.OrdinalIgnoreCase))'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'the deletion after the end deletes the manifest while the program is still there'
+        File    = 'src\Yav.Console\Install\InstallSurroundings.cs'
+        Find    = '            + $" & (if not exist \"{program}\" (del /f /q \"{manifest}\" 2>nul & rmdir \"{directory}\" 2>nul)))");'
+        Replace = '            + $" & del /f /q \"{manifest}\" 2>nul & rmdir \"{directory}\" 2>nul)");'
+        Filter  = 'FullyQualifiedName~InstallCommandTests.The_deletion_after_the_end'
+    },
+    @{
+        Name    = 'the deletion after the end deletes a new installation in the same directory'
+        File    = 'src\Yav.Console\Install\InstallSurroundings.cs'
+        Find    = '            $"\"{ping}\" -n {waitSeconds + 1} 127.0.0.1 >nul & {unchanged} && ("'
+        Replace = '            $"\"{ping}\" -n {waitSeconds + 1} 127.0.0.1 >nul & ("'
+        Filter  = 'FullyQualifiedName~InstallCommandTests.The_deletion_after_the_end'
+    },
+    @{
+        Name    = 'the deletion after the end gives findstr the path of the manifest'
+        File    = 'src\Yav.Console\Install\InstallSurroundings.cs'
+        Find    = '        var unchanged = $"\"{findstr}\" /l /c:{removal} <\"{manifest}\" >nul";'
+        Replace = '        var unchanged = $"\"{findstr}\" /l /c:{removal} \"{manifest}\" >nul";'
+        Filter  = 'FullyQualifiedName~InstallCommandTests.The_deletion_after_the_end'
+    },
+    @{
+        Name    = 'a removal is not tied to the manifest it leaves'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '                    Removal = removal,'
+        Replace = '                    Removal = null,'
+        Filter  = 'FullyQualifiedName~InstallerTests|FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'the report of a self-removal says that other files are kept'
+        File    = 'src\Yav.Console\Install\InstallReport.cs'
+        Find    = '            : outcome.OtherFilesKept ? $"Removed the files of YAV Shell. {directory} holds other files and was kept."'
+        Replace = '            : outcome.OtherFilesKept || left is not null ? $"Removed the files of YAV Shell. {directory} holds other files and was kept."'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'the root of a drive is installed into'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        if (IsVolumeRoot(directory))'
+        Replace = '        if (directory.Length == 0)'
+        Filter  = 'FullyQualifiedName~InstallerTests.The_root_of_a_drive'
+    },
+    @{
+        Name    = 'a program that windows cannot start is installed'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        if (target.Length > LongestProgramPath)'
+        Replace = '        if (target.Length < 0)'
+        Filter  = 'FullyQualifiedName~InstallerTests.A_directory_whose_program_could_not_be_started'
+    },
+    @{
+        Name    = 'a directory with a semicolon is added to the path'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        if (options.AddToPath && directory.Contains('';'', StringComparison.Ordinal))'
+        Replace = '        if (options.AddToPath && directory.Length == 0)'
+        Filter  = 'FullyQualifiedName~InstallerTests.A_directory_with_a_semicolon'
+    },
+    @{
+        Name    = 'an empty directory another program uses stops the removal'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '            Directory.Delete(directory);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)'
+        Replace = '            Directory.Delete(directory);
+            return true;
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException)'
+        Filter  = 'FullyQualifiedName~InstallerTests.An_empty_directory_that_another_program_uses'
+    },
+    @{
+        Name    = 'what an interrupted write left keeps the directory from being removed'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '            RemoveLeftovers(root, manifest.Files.Select(f => f.Path));'
+        Replace = '            _ = manifest.Files.Count;'
+        Filter  = 'FullyQualifiedName~InstallerTests.What_an_interrupted_write'
+    },
+    @{
+        Name    = 'an installation of yav shell 0.1.1 is taken for a stranger'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        return found.Exists ? found : ReadEarlierManifest(Path.Combine(directory, EarlierManifestName));'
+        Replace = '        return found.Exists || directory.Length > 0 ? found : ReadEarlierManifest(Path.Combine(directory, EarlierManifestName));'
+        Filter  = 'FullyQualifiedName~InstallerTests.An_installation_of_yav_shell_0_1_1'
+    },
+    @{
+        Name    = 'the program is not compared by where its path leads'
+        File    = 'src\Yav.Platform\Install\InstallSystem.cs'
+        Find    = '        var final = FinalPathOf(wanted) ?? wanted;'
+        Replace = '        var final = wanted;'
+        Filter  = 'FullyQualifiedName~WindowsInstallSystemTests'
+    },
+    @{
+        Name    = 'a failure nobody foresaw in the offer keeps the shell from starting'
+        File    = 'src\Yav.Console\Install\InstallOffer.cs'
+        Find    = '        ex is not OutOfMemoryException && !(ex is OperationCanceledException && cancellationToken.IsCancellationRequested);'
+        Replace = '        ex is not OutOfMemoryException && !(ex is OperationCanceledException && cancellationToken.IsCancellationRequested) && ex is not InvalidOperationException;'
+        Filter  = 'FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'a no that could not be saved is said to be remembered'
+        File    = 'src\Yav.Console\Install\InstallOffer.cs'
+        Find    = '                await world.Output.WriteLineAsync(rememberDecline()'
+        Replace = '                await world.Output.WriteLineAsync(rememberDecline() || true'
+        Filter  = 'FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'a window that was asked to be hidden is taken for one somebody sees'
+        File    = 'src\Yav.Console\Install\ConsoleWindow.cs'
+        Find    = '    internal static bool IsHidden(uint flags, ushort showWindow) => (flags & StartfUseShowWindow) != 0 && showWindow == SwHide;'
+        Replace = '    internal static bool IsHidden(uint flags, ushort showWindow) => flags == uint.MaxValue && showWindow == SwHide;'
+        Filter  = 'FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'an installation takes a directory that holds files of someone else'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        if (earlier is null && Directory.Exists(directory) && Directory.EnumerateFileSystemEntries(directory).Any(entry => !IsLeftover(entry)))'
+        Replace = '        if (earlier is null && directory.Length == 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'a manifest that cannot be read is taken for no installation at all'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        if (manifestExists && earlier is null)'
+        Replace = '        if (manifestExists && earlier is null && directory.Length == 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'the data directory is taken for an installation directory'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        if (LongPath.IsSameOrInside(directory, _dataDirectory) || LongPath.IsSameOrInside(_dataDirectory, directory))'
+        Replace = '        if (LongPath.IsSameOrInside(directory, _dataDirectory) && directory.Length == 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'a short name of a directory is taken for another directory'
+        File    = 'src\Yav.Platform\Install\LongPath.cs'
+        Find    = '    public static string Of(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));'
+        Replace = '    public static string Of(string path) => Path.TrimEndingDirectorySeparator(path);'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests|FullyQualifiedName~WindowsInstallSystemTests'
+    },
+    @{
+        Name    = 'a second installation takes over the entry of the first'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        if (options.Register && Current() is { } other && !LongPath.Same(other.InstallLocation, directory))'
+        Replace = '        if (options.Register && Current() is { } other && other.InstallLocation.Length == 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'files of an earlier version stay when the new one has none of them'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '                if (!installed.Any(f => SameName(f.Path, old.Path)) && Inside(directory, old.Path) is { } stale && File.Exists(stale))'
+        Replace = '                if (old.Path.Length == 0 && Inside(directory, old.Path) is { } stale && File.Exists(stale))'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'an interrupted installation leaves files that belong to nobody'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '            WriteManifest(manifestPath, new InstallManifest(Product, _version, DateTimeOffset.UtcNow, planned));
+            begun = true;'
+        Replace = '            begun = planned.Count > 0;'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'a damaged file of the installation is left as it is'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '                installed.Add(Write(directory, file.Path, file.Open));'
+        Replace = '                installed.Add(File.Exists(Path.Combine(directory, file.Path)) ? Describe(directory, file.Path) : Write(directory, file.Path, file.Open));'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'a program that does not start is installed and put on the path'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        if (!string.Equals(reported, "yav " + _version, StringComparison.Ordinal))'
+        Replace = '        if (reported is null)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'the path loses its kind when the installation writes it'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '// Only the text changes: the kind of the value, and with it whether Windows expands it, stays.
+                    _system.WriteUserPath(path with { Value = changed });'
+        Replace = '// Only the text changes: the kind of the value, and with it whether Windows expands it, stays.
+                    _system.WriteUserPath(new UserPath(changed, Expandable: true));'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'a path entry that only begins like the directory is removed with it'
+        File    = 'src\Yav.Console\Install\PathList.cs'
+        Find    = '        return string.Join('';'', path.Split('';'').Where(part => Comparable(part) != wanted));'
+        Replace = '        return string.Join('';'', path.Split('';'').Where(part => !Comparable(part).StartsWith(wanted, StringComparison.Ordinal)));'
+        Filter  = 'FullyQualifiedName~PathListTests'
+    },
+    @{
+        Name    = 'empty parts of the path are dropped when the installation is removed'
+        File    = 'src\Yav.Console\Install\PathList.cs'
+        Find    = '        return string.Join('';'', path.Split('';'').Where(part => Comparable(part) != wanted));'
+        Replace = '        return string.Join('';'', path.Split('';'').Where(part => part.Length > 0 && Comparable(part) != wanted));'
+        Filter  = 'FullyQualifiedName~PathListTests'
+    },
+    @{
+        Name    = 'the directory is added to the path although it is there already'
+        File    = 'src\Yav.Console\Install\PathList.cs'
+        Find    = '        if (Contains(path, directory))'
+        Replace = '        if (path.Length < 0)'
+        Filter  = 'FullyQualifiedName~PathListTests'
+    },
+    @{
+        Name    = 'removing an installation removes what the user put there'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        if (!removed && !IsVolumeRoot(root) && !Directory.EnumerateFileSystemEntries(root).Any())
+        {
+            removed = TryDeleteDirectory(root);'
+        Replace = '        if (!removed && !IsVolumeRoot(root))
+        {
+            Directory.Delete(root, recursive: true);
+            removed = true;'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'a directory without an installation is removed as if it were one'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        if (ReadInstallation(root).Manifest is not { } manifest)'
+        Replace = '        var manifest = ReadInstallation(root).Manifest ?? new InstallManifest(Product, _version, DateTimeOffset.UtcNow, []);
+        if (manifest is null)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'the program that runs is deleted with the other files'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '                    left = path;
+                    continue;'
+        Replace = '                    left = path;'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'the program that runs is not named for the caller to delete'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '                    left = path;
+                    continue;'
+        Replace = '                    continue;'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'an entry under installed apps of another directory is removed'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '            if (registration is not null && LongPath.Same(registration.InstallLocation, root))'
+        Replace = '            if (registration is not null)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'an installation goes on while yav runs from its directory'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        var running = _system.ProcessesRunning(executable).Where(id => id != Environment.ProcessId).ToList();'
+        Replace = '        var running = _system.ProcessesRunning(executable).Where(id => id == -1).ToList();'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'the process that installs counts as one that runs the program'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        var running = _system.ProcessesRunning(executable).Where(id => id != Environment.ProcessId).ToList();'
+        Replace = '        var running = _system.ProcessesRunning(executable).ToList();'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'processes of a copy elsewhere count as running the program'
+        File    = 'src\Yav.Platform\Install\InstallSystem.cs'
+        Find    = '                    && (LongPath.Same(image, wanted) || LongPath.Same(image, final) || (FinalPathOf(image) is { } leadsTo && LongPath.Same(leadsTo, final))))'
+        Replace = '                    && image.Length > 0)'
+        Filter  = 'FullyQualifiedName~WindowsInstallSystemTests'
+    },
+    @{
+        Name    = 'a manifest removes a file outside the installation directory'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '        return full.StartsWith(WithSeparator(root), StringComparison.OrdinalIgnoreCase) ? full : null;'
+        Replace = '        return full;'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'a read-only file of the installation stops a new installation'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '            ClearReadOnly(target);
+            File.Move(temporary, target, overwrite: true);'
+        Replace = '            File.Move(temporary, target, overwrite: true);'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
+    },
+    @{
+        Name    = 'a path that cannot be read as text is replaced by the directory alone'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = '            throw new InstallException($"The PATH of your account could not be read: {ex.Message} {consequence}", ex);'
+        Replace = '            _ = (ex, consequence);
+            return new UserPath(string.Empty, Expandable: true);'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Packaging.InstallerTests'
     },
     @{
         Name    = 'relative PATH entries are searched'
@@ -45,6 +390,105 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~CommandLineTests|FullyQualifiedName~ProcessRunnerTests'
     },
     @{
+        Name    = 'a build of the source tree installs itself'
+        File    = 'src\Yav.Console\Install\InstallCommand.cs'
+        Find    = 'if (!world.IsSingleFile)'
+        Replace = 'if (world.IsSingleFile && !world.IsSingleFile)'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'a console without a window is taken for one that closes with yav'
+        File    = 'src\Yav.Console\Install\ConsoleWindow.cs'
+        Find    = 'public static bool IsOwn(int processesSharingConsole, bool hasWindow) => processesSharingConsole == 1 && hasWindow;'
+        Replace = 'public static bool IsOwn(int processesSharingConsole, bool hasWindow) => processesSharingConsole == 1;'
+        Filter  = 'FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'a no to the offer in an open console is asked again'
+        File    = 'src\Yav.Console\Install\InstallOffer.cs'
+        Find    = 'return situation.OwnWindow || !situation.DeclinedBefore ? OfferKind.Install : OfferKind.None;'
+        Replace = 'return OfferKind.Install;'
+        Filter  = 'FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'an answer other than yes removes the data of the user'
+        File    = 'src\Yav.Console\Install\InstallCommand.cs'
+        Find    = 'removeData = string.Equals(answer?.Trim(), "yes", StringComparison.OrdinalIgnoreCase);'
+        Replace = 'removeData = answer is not null;'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'a directory that holds no data of yav is removed as its data'
+        File    = 'src\Yav.Console\Install\DataDirectory.cs'
+        Find    = '        if (!File.Exists(Path.Combine(full, "yav.db")))'
+        Replace = '        if (full.Length == 0)'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'removing the data follows a link out of the data directory'
+        File    = 'src\Yav.Console\Install\DataDirectory.cs'
+        Find    = 'if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint))'
+        Replace = 'if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint) && entry is not DirectoryInfo)'
+        Filter  = 'FullyQualifiedName~InstallCommandTests.Removing_the_data_does_not_enter'
+    },
+    @{
+        Name    = 'a console that finds yav is told to change its path'
+        File    = 'src\Yav.Console\Install\InstallReport.cs'
+        Find    = 'if (findsIt && !ownWindow && !PathList.Contains(inheritedPath, directory))'
+        Replace = 'if (findsIt && !ownWindow)'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'an installed version that is only different is offered to be replaced'
+        File    = 'src\Yav.Console\Install\InstallOffer.cs'
+        Find    = 'Parse(installed) is { } old && Parse(version) is { } current && old < current;'
+        Replace = 'Parse(installed) is { } old && Parse(version) is { } current && old != current;'
+        Filter  = 'FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'the installed program that removed itself is left behind'
+        File    = 'src\Yav.Console\Install\InstallCommand.cs'
+        Find    = '                world.DeleteAfterExit(left, removal);'
+        Replace = '                _ = (left, removal);'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'the running program is handed to the deletion before its window was closed'
+        File    = 'src\Yav.Console\Install\InstallCommand.cs'
+        Find    = '        using (outcome?.ProgramLeftAt is not null && world.OwnWindow ? PosixSignalRegistration.Create(PosixSignal.SIGHUP, _ => HandOver()) : null)'
+        Replace = '        HandOver();
+        using (outcome?.ProgramLeftAt is not null && world.OwnWindow ? PosixSignalRegistration.Create(PosixSignal.SIGHUP, _ => HandOver()) : null)'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'a path that cmd would expand is handed to cmd'
+        File    = 'src\Yav.Console\Install\InstallSurroundings.cs'
+        Find    = "Path.GetDirectoryName(program) is not null && program.IndexOfAny(['%', '!', '`"']) < 0;"
+        Replace = 'Path.GetDirectoryName(program) is not null;'
+        Filter  = 'FullyQualifiedName~InstallCommandTests'
+    },
+    @{
+        Name    = 'the manifest of a program that was left behind is deleted'
+        File    = 'src\Yav.Console\Install\Installer.cs'
+        Find    = "            if (left is null)`n            {`n                Delete(manifestPath);`n            }"
+        Replace = "            if (left is null || left.Length > 0)`n            {`n                Delete(manifestPath);`n            }"
+        Filter  = 'FullyQualifiedName~InstallerTests'
+    },
+    @{
+        Name    = 'a window opened from explorer closes before its result is read'
+        File    = 'src\Yav.Console\Install\InstallCommand.cs'
+        Find    = 'if (!world.OwnWindow || !world.CanAsk)'
+        Replace = 'if (world.OwnWindow || !world.OwnWindow)'
+        Filter  = 'FullyQualifiedName~InstallCommandTests|FullyQualifiedName~InstallOfferTests'
+    },
+    @{
+        Name    = 'an option of uninstall is taken by install'
+        File    = 'src\Yav.Console\Cli\CommandLine.cs'
+        Find    = 'case "--remove-data" when mode == CliMode.Uninstall && inline is null:'
+        Replace = 'case "--remove-data" when inline is null:'
+        Filter  = 'FullyQualifiedName~CommandLineTests'
+    },
+    @{
         Name    = 'a bare carriage return is passed through'
         File    = 'src\Yav.Core\Text\TerminalSanitizer.cs'
         Find    = "                _pendingCarriageReturn = true;`n                return;"
@@ -52,11 +496,238 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~TerminalSanitizerTests'
     },
     @{
+        Name    = 'an answer that changes nothing is left in checking'
+        File    = 'src\Yav.Core\Runs\RunState.cs'
+        Find    = 'RunState.ReadyToApply, RunState.Completed, RunState.Repairing,'
+        Replace = 'RunState.ReadyToApply, RunState.Repairing,'
+        Filter  = 'FullyQualifiedName~RunPipelineTests.An_answer_that_changes_nothing_completes_without_a_review'
+    },
+    @{
+        Name    = 'an answer that changes nothing is completed before what it left was frozen'
+        File    = 'src\Yav.Core\Runs\RunState.cs'
+        Find    = "        [RunState.Implementing] =`n        [`n            RunState.AwaitingApproval, RunState.Checking, RunState.Blocked,"
+        Replace = "        [RunState.Implementing] =`n        [`n            RunState.AwaitingApproval, RunState.Checking, RunState.Completed, RunState.Blocked,"
+        Filter  = 'FullyQualifiedName~RunStateMachineTests'
+    },
+    @{
         Name    = 'a stale review is accepted'
         File    = 'src\Yav.Core\Runs\AcceptanceGate.cs'
         Find    = 'if (!review.Binding.Matches(expected, out var difference))'
         Replace = 'if (!review.Binding.Matches(review.Binding, out var difference))'
         Filter  = 'FullyQualifiedName~AcceptanceGateTests'
+    },
+    @{
+        Name    = 'first run: a request is not sent again once what blocked it was settled'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '        await StartRunAsync(sent with { Round = sent.Round + 1, Settled = all }, cancellationToken).ConfigureAwait(false);'
+        Replace = '        _ = all;'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.A_first_request'
+    },
+    @{
+        Name    = 'first run: the request is sent again without what was attached'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '        await StartRunAsync(sent with { Round = sent.Round + 1, Settled = all }, cancellationToken).ConfigureAwait(false);'
+        Replace = '        await StartRunAsync(sent with { Attachments = [], Round = sent.Round + 1, Settled = all }, cancellationToken).ConfigureAwait(false);'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.What_was_attached'
+    },
+    @{
+        Name    = 'first run: questions are asked when nobody can answer them'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '        if (!_input.CanAsk || _session.ProjectPath is not { } project || !RefusedBeforeItBegan(outcome))'
+        Replace = '        if (_session.ProjectPath is not { } project || !RefusedBeforeItBegan(outcome))'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Nothing_is_asked_when_nobody_can_answer'
+    },
+    @{
+        Name    = 'first run: Model B may be the model of Model A under Quality Lock'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '            var notThis = current.QualityLock && current.Strict ? current.ModelA : null;'
+        Replace = '            var notThis = current.QualityLock && current.Strict ? null : current.ModelA;'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Model_B_has_to_be_another_model'
+    },
+    @{
+        Name    = 'first run: an account route is acknowledged without a typed yes'
+        File    = 'src\Yav.Console\Shell\Commands.Models.cs'
+        Find    = '        if (!await ConfirmAsync($"Use ''{auth.RouteLabel}'' for runs of YAV, billed as stated above?", cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }'
+        Replace = '        _ = await ConfirmAsync($"Use ''{auth.RouteLabel}'' for runs of YAV, billed as stated above?", cancellationToken).ConfigureAwait(false);'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.An_account_route_is_acknowledged_only_by_a_typed_yes'
+    },
+    @{
+        Name    = 'first run: acceptance on the review alone is recorded without a typed yes'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '        if (!await ConfirmAsync("Accept candidates of this project on the review alone?", cancellationToken).ConfigureAwait(false))
+        {
+            return Settling.Declined;
+        }'
+        Replace = '        _ = await ConfirmAsync("Accept candidates of this project on the review alone?", cancellationToken).ConfigureAwait(false);'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Checks_that_were_declined'
+    },
+    @{
+        Name    = 'first run: missing ignored files are accepted without a typed yes'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '        if (!await ConfirmAsync("Accept this difference for the project?", cancellationToken).ConfigureAwait(false))
+        {
+            return Settling.Declined;
+        }'
+        Replace = '        _ = await ConfirmAsync("Accept this difference for the project?", cancellationToken).ConfigureAwait(false);'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Files_the_isolated_workspace_would_not_have_are_not_accepted_by_a_no'
+    },
+    @{
+        Name    = 'first run: an effort the model does not list is taken'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '            if (model.SupportedEfforts.FirstOrDefault(e => e.Equals(answer, StringComparison.OrdinalIgnoreCase)) is { } listed)'
+        Replace = '            if ((model.SupportedEfforts.FirstOrDefault(e => e.Equals(answer, StringComparison.OrdinalIgnoreCase)) ?? answer) is { } listed)'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.An_effort_the_model_does_not_rank'
+    },
+    @{
+        Name    = 'first run: a problem settled for a request is asked about again'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '        problems.Where(p => p.Severity == ProblemSeverity.Blocking && CanSettle(p.Code) && !settled.Contains(Key(p))).ToList();'
+        Replace = '        problems.Where(p => p.Severity == ProblemSeverity.Blocking && CanSettle(p.Code)).ToList();'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Only_blocking_problems'
+    },
+    @{
+        Name    = 'first run: a request without a project is not asked where it goes'
+        File    = 'src\Yav.Console\Shell\InteractiveShell.cs'
+        Find    = '            if (!await AskForProjectAsync(cancellationToken).ConfigureAwait(false))'
+        Replace = '            if (!await Task.FromResult(false).ConfigureAwait(false))'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.A_request_typed_without_a_project'
+    },
+    @{
+        Name    = 'first run: the sign-in of Claude Code is offered by YAV'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '    private static bool MayStartSignIn(IAgentAdapter adapter) => adapter.Provider != "anthropic";'
+        Replace = '    private static bool MayStartSignIn(IAgentAdapter adapter) => adapter.Provider.Length > 0;'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.A_role_whose_Claude_Code_is_not_signed_in'
+    },
+    @{
+        Name    = 'first run: the experimental interface is not marked'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '(agent.First().Experimental ? " - experimental interface" : string.Empty)'
+        Replace = '(!agent.First().Experimental ? " - experimental interface" : string.Empty)'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.The_first_run_marks_the_experimental_interface'
+    },
+    @{
+        Name    = 'first run: the folder of downloads is taken for a project'
+        File    = 'src\Yav.Console\Shell\InteractiveShell.cs'
+        Find    = '        if (string.Equals(Path.TrimEndingDirectorySeparator(KnownFolders.Downloads), full, StringComparison.OrdinalIgnoreCase))'
+        Replace = '        if (string.Equals(Path.TrimEndingDirectorySeparator(KnownFolders.Downloads) + "?", full, StringComparison.OrdinalIgnoreCase))'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.The_folder_of_downloads'
+    },
+    @{
+        Name    = 'first run: started outside a shell, the directory it starts in is taken for the project'
+        File    = 'src\Yav.Console\Shell\InteractiveShell.cs'
+        Find    = '        if (projectPath is null && startedOutsideAShell)'
+        Replace = '        if (projectPath is null && startedOutsideAShell && projectPath is not null)'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Started_outside_a_shell'
+    },
+    @{
+        Name    = 'first run: quality gates required leaves the project accepted on the review alone'
+        File    = 'src\Yav.Console\Shell\Commands.Models.cs'
+        Find    = '                if (value == "required" && _session.ProjectPath is { } open && _services.Database.WithdrawReviewOnly(open))'
+        Replace = '                if (value == "required" && _session.ProjectPath is { } open && !_services.Database.IsReviewOnlyAccepted(open))'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Quality_shows'
+    },
+    @{
+        Name    = 'first run: a project whose approved checks are optional is said to have none'
+        File    = 'src\Yav.Console\Shell\Commands.Models.cs'
+        Find    = '        return (state.Effective.Gates.Count == 0'
+        Replace = '        return (state.Effective.Gates.Count >= 0'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.A_project_whose_approved_checks_are_all_optional'
+    },
+    @{
+        Name    = 'first run: a failure while an answer is recorded ends the shell'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '            catch (Exception ex) when (IsCommandFailure(ex))'
+        Replace = '            catch (Exception ex) when (IsCommandFailure(ex) && _session.ExitRequested)'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.A_failure_while_an_answer_is_recorded'
+    },
+    @{
+        Name    = 'first run: what was attached before a project was selected is dropped'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '        _session.Attachments.AddRange(attached.Where(a => !_session.Attachments.Contains(a, StringComparer.OrdinalIgnoreCase)));'
+        Replace = '        _ = attached;'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.What_was_attached_before_a_project'
+    },
+    @{
+        Name    = 'first run: a drive is taken for the project of a request'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '            if (Directory.Exists(full) && !IsSensibleProject(full))'
+        Replace = '            if (Directory.Exists(full) && !IsSensibleProject(full) && _session.ExitRequested)'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.A_drive_is_not_taken'
+    },
+    @{
+        Name    = 'first run: without a project, the folder is asked for when nobody can answer'
+        File    = 'src\Yav.Console\Shell\InteractiveShell.cs'
+        Find    = '                _ui.Warn("No project is selected, so the request was not sent. Select one with /open <path>.");
+                return;'
+        Replace = '                _ui.Warn("No project is selected, so the request was not sent. Select one with /open <path>.");'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Without_a_project_nothing_is_asked'
+    },
+    @{
+        Name    = 'first run: an unusable answer is asked for without end'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '    private const int Attempts = 3;'
+        Replace = '    private const int Attempts = 1000;'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Three_answers_that_are_not_on_the_list'
+    },
+    @{
+        Name    = 'first run: no answer to the approval of the checks leads to the review alone'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '                if (_confirmUnanswered)'
+        Replace = '                if (_confirmUnanswered && _session.ExitRequested)'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Control_C_at_the_approval_of_the_checks'
+    },
+    @{
+        Name    = 'first run: Control+C as a signal at a question is left to whoever asked'
+        File    = 'src\Yav.Console\Shell\InteractiveShell.cs'
+        Find    = '            if (Volatile.Read(ref _guideQuestion) is not { } question)'
+        Replace = '            if (Volatile.Read(ref _guideQuestion) is not { } question || question.Token.CanBeCanceled)'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Control_C_as_a_signal'
+    },
+    @{
+        Name    = 'first run: Model A may be the model of a Model B that stays, under Quality Lock'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '            var kept = settings.QualityLock && settings.Strict && !needB ? settings.ModelB : null;'
+        Replace = '            var kept = settings.QualityLock && settings.Strict && needB ? settings.ModelB : null;'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Model_A_has_to_be_another_model'
+    },
+    @{
+        Name    = 'first run: a refusal no answer settled is sent again'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '        if (settled.Count == 0)'
+        Replace = '        if (settled.Count == 0 && _session.ExitRequested)'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.A_refusal_that_no_question_settled'
+    },
+    @{
+        Name    = 'first run: a request is sent again once more than the rounds allow'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '        return round >= MaxRounds ? (SetupStep.TooManyRounds, open) : (SetupStep.Ask, open);'
+        Replace = '        return round > MaxRounds ? (SetupStep.TooManyRounds, open) : (SetupStep.Ask, open);'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.A_request_is_asked_for_until_the_rounds'
+    },
+    @{
+        Name    = 'first run: an agent that is not found is asked to be chosen again'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '"model-unavailable", "adapter-unknown"];'
+        Replace = '"model-unavailable", "adapter-unknown", "adapter-not-found"];'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.Only_blocking_problems'
+    },
+    @{
+        Name    = 'first run: what was settled before a decline is advised again'
+        File    = 'src\Yav.Console\Shell\InteractiveShell.cs'
+        Find    = 'p.Remedy is not null && !settled.Contains(SetupProblems.Key(p))'
+        Replace = 'p.Remedy is not null'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.A_decline_keeps_what_was_attached'
+    },
+    @{
+        Name    = 'first run: what was attached is dropped when the request is not sent'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = '        _session.Attachments.AddRange(back);'
+        Replace = '        _ = back;'
+        Filter  = 'FullyQualifiedName~ShellSetupTests.A_decline_keeps_what_was_attached'
     },
     @{
         Name    = 'a pass with blocking findings is accepted by the parser'
@@ -77,6 +748,109 @@ $mutations = @(
 
         var maximum'
         Filter  = 'FullyQualifiedName~ProfileResolverTests'
+    },
+    @{
+        Name    = 'a project whose review alone was accepted stays blocked'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Prepare.cs'
+        Find    = 'if (policy.RequireGates && !state.Effective.RequiredGates.Any() && _services.Trust.IsReviewOnlyAccepted(project))'
+        Replace = 'if (policy.RequireGates && !state.Effective.RequiredGates.Any() && _services.Trust.IsReviewOnlyAccepted(project) && project.Length < 0)'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests'
+    },
+    @{
+        Name    = 'every project is taken as accepted on the review alone'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Prepare.cs'
+        Find    = 'if (policy.RequireGates && !state.Effective.RequiredGates.Any() && _services.Trust.IsReviewOnlyAccepted(project))'
+        Replace = 'if (policy.RequireGates && !state.Effective.RequiredGates.Any())'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests'
+    },
+    @{
+        Name    = 'the review alone accepts a candidate although a check is approved'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Prepare.cs'
+        Find    = 'if (policy.RequireGates && !state.Effective.RequiredGates.Any() && _services.Trust.IsReviewOnlyAccepted(project))'
+        Replace = 'if (policy.RequireGates && _services.Trust.IsReviewOnlyAccepted(project))'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests'
+    },
+    @{
+        Name    = 'the acceptance of the review alone is announced but not honored'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Prepare.cs'
+        Find    = 'policy = policy with { RequireGates = false };'
+        Replace = '_ = policy;'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests'
+    },
+    @{
+        Name    = 'that the review alone accepts a candidate is not shown as a warning'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Prepare.cs'
+        Find    = 'null, ProblemSeverity.Warning, "review-only",'
+        Replace = 'null, ProblemSeverity.Info, "review-only",'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests'
+    },
+    @{
+        Name    = 'the acceptance of the review alone is read from another acknowledgement'
+        File    = 'src\Yav.Storage\YavDatabase.Trust.cs'
+        Find    = 'public bool IsReviewOnlyAccepted(string projectPath) => IsAcknowledged(ReviewOnlyKind, ProjectKey(projectPath));'
+        Replace = 'public bool IsReviewOnlyAccepted(string projectPath) => IsAcknowledged(InPlaceKind, ProjectKey(projectPath));'
+        Filter  = 'FullyQualifiedName~TrustStoreTests'
+    },
+    @{
+        Name    = 'withdrawing the acceptance of the review alone withdraws another acknowledgement'
+        File    = 'src\Yav.Storage\YavDatabase.Trust.cs'
+        Find    = 'transaction, ("$kind", ReviewOnlyKind), ("$subject", subject)) == 0)'
+        Replace = 'transaction, ("$kind", InPlaceKind), ("$subject", subject)) == 0)'
+        Filter  = 'FullyQualifiedName~TrustStoreTests'
+    },
+    @{
+        Name    = 'the review alone accepts a candidate although the approved checks cannot be read'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Prepare.cs'
+        Find    = 'if (state.Trust == ConfigurationTrust.Invalid || state.Errors.Count > 0)'
+        Replace = 'if (state.Trust == ConfigurationTrust.Invalid && state.Errors.Count < 0)'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests'
+    },
+    @{
+        Name    = 'why the approval cannot be read is not said beside a file that was not approved (review alone)'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Prepare.cs'
+        Find    = '                AddErrors(problems, state.Errors);
+                break;
+
+            case ConfigurationTrust.Changed:'
+        Replace = '                break;
+
+            case ConfigurationTrust.Changed:'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests'
+    },
+    @{
+        Name    = 'a candidate accepted on the review alone is applied after the acceptance was withdrawn'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Deliver.cs'
+        Find    = 'if (WithdrawnAfterTheRun(run, profile))'
+        Replace = 'if (WithdrawnAfterTheRun(run, profile) && runId.Length < 0)'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests'
+    },
+    @{
+        Name    = 'a withdrawal of the review alone before the run keeps its candidate from being applied'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Deliver.cs'
+        Find    = '&& withdrawn >= run.CreatedAt;'
+        Replace = '&& withdrawn >= DateTimeOffset.MinValue;'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests'
+    },
+    @{
+        Name    = 'accepting the review alone once more does not make its candidate applicable again'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Deliver.cs'
+        Find    = '&& !_services.Trust.IsReviewOnlyAccepted(run.ProjectPath)'
+        Replace = '&& run.ProjectPath.Length >= 0'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests'
+    },
+    @{
+        Name    = 'when the review alone was withdrawn is not kept'
+        File    = 'src\Yav.Storage\YavDatabase.Trust.cs'
+        Find    = '"SELECT acknowledged_at FROM acknowledgements WHERE kind = $kind AND subject = $subject;"'
+        Replace = '"SELECT acknowledged_at FROM acknowledgements WHERE kind = $kind AND subject = $subject AND 1 = 0;"'
+        Filter  = 'FullyQualifiedName~TrustStoreTests|FullyQualifiedName~ReviewOnlyTests'
+    },
+    @{
+        Name    = 'a withdrawal of the review alone is listed as an acknowledgement'
+        File    = 'src\Yav.Storage\YavDatabase.Trust.cs'
+        Find    = 'WHERE kind <> $withdrawn ORDER BY acknowledged_at;'
+        Replace = 'WHERE kind <> $withdrawn OR 1 = 1 ORDER BY acknowledged_at;'
+        Filter  = 'FullyQualifiedName~TrustStoreTests'
     },
     @{
         Name    = 'cached tokens are counted twice'
@@ -2585,63 +3359,53 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~CliCommandTests'
     },
     @{
-        Name    = 'a file of a package that was changed is not noticed'
-        File    = 'installer\YavInstall.ps1'
-        Find    = 'if ($hash -ne $file.sha256) {'
+        Name    = 'a package that is not the one its checksum was written for is accepted'
+        File    = 'scripts\package-tools.ps1'
+        Find    = "if (`$actual -ne `$parts.Groups['hash'].Value.ToLowerInvariant()) {"
         Replace = 'if ($false) {'
-        Filter  = 'FullyQualifiedName~InstallerScriptTests'
+        Filter  = 'FullyQualifiedName~BuildScriptTests'
     },
     @{
         Name    = 'the hash of a file needs a command that is not always there'
-        File    = 'installer\YavInstall.ps1'
-        Find    = '        $hash = Get-YavSha256 -Path $path'
-        Replace = '        $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()'
-        Filter  = 'FullyQualifiedName~InstallerScriptTests'
+        File    = 'scripts\package-tools.ps1'
+        Find    = "    [System.BitConverter]::ToString(`$hash).Replace('-', '').ToLowerInvariant()"
+        Replace = '    (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()'
+        Filter  = 'FullyQualifiedName~BuildScriptTests'
     },
     @{
-        Name    = 'installing takes a directory that holds something else'
-        File    = 'installer\install.ps1'
-        Find    = '            if (@(Get-ChildItem -LiteralPath $InstallDir -Force).Count -gt 0) {'
-        Replace = '            if ($false) {'
-        Filter  = 'FullyQualifiedName~InstallerScriptTests'
-    },
-    @{
-        Name    = 'installing again leaves what was damaged'
-        File    = 'installer\install.ps1'
-        Find    = '        Copy-Item -LiteralPath (Join-Path $source $relative) -Destination $target -Force'
-        Replace = '        if (-not (Test-Path -LiteralPath $target)) { Copy-Item -LiteralPath (Join-Path $source $relative) -Destination $target -Force }'
-        Filter  = 'FullyQualifiedName~InstallerScriptTests'
-        Extra   = @(
-            @{ Find = '                if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }'; Replace = '                if ($false) { Remove-Item -LiteralPath $path -Force }' }
-        )
-    },
-    @{
-        Name    = 'uninstalling removes what the installation did not put there'
-        File    = 'installer\uninstall.ps1'
-        Find    = "    if (@(Get-ChildItem -LiteralPath `$InstallDir -Force).Count -eq 0) {`n        Remove-Item -LiteralPath `$InstallDir -Force"
-        Replace = "    if (`$true) {`n        Remove-Item -LiteralPath `$InstallDir -Force -Recurse"
-        Filter  = 'FullyQualifiedName~InstallerScriptTests'
-    },
-    @{
-        Name    = 'uninstalling works in a directory that holds no installation'
-        File    = 'installer\uninstall.ps1'
-        Find    = 'if (-not (Test-Path -LiteralPath $manifestPath)) {'
+        Name    = 'the checksum of another file is taken for the checksum of the package'
+        File    = 'scripts\package-tools.ps1'
+        Find    = "if (`$parts.Groups['name'].Value -ne `$name) {"
         Replace = 'if ($false) {'
-        Filter  = 'FullyQualifiedName~InstallerScriptTests'
+        Filter  = 'FullyQualifiedName~BuildScriptTests'
     },
     @{
-        Name    = 'a directory is added to the path a second time'
-        File    = 'installer\YavInstall.ps1'
-        Find    = 'if ((ConvertTo-YavComparablePath $part) -eq $wanted) { return $Path }'
-        Replace = 'if ($false) { return $Path }'
-        Filter  = 'FullyQualifiedName~InstallerScriptTests'
+        Name    = 'the checksum is written in a form sha256sum does not read'
+        File    = 'scripts\package-tools.ps1'
+        Find    = '"$hash  $([System.IO.Path]::GetFileName($full))`n"'
+        Replace = '"$hash $([System.IO.Path]::GetFileName($full))`r`n"'
+        Filter  = 'FullyQualifiedName~BuildScriptTests'
     },
     @{
-        Name    = 'removing from the path takes what only begins the same way'
-        File    = 'installer\YavInstall.ps1'
-        Find    = 'Where-Object { (ConvertTo-YavComparablePath $_) -ne $wanted })'
-        Replace = 'Where-Object { (ConvertTo-YavComparablePath $_) -notlike "$wanted*" })'
-        Filter  = 'FullyQualifiedName~InstallerScriptTests'
+        Name    = 'the build scripts take the version of the assembly for the version of the product'
+        File    = 'scripts\package-tools.ps1'
+        Find    = 'ForEach-Object { [string]$_.Version })'
+        Replace = 'ForEach-Object { [string]$_.AssemblyVersion })'
+        Filter  = 'FullyQualifiedName~BuildScriptTests'
+    },
+    @{
+        Name    = 'the package is published as a program with its libraries beside it'
+        File    = 'scripts\package.ps1'
+        Find    = "    '-p:PublishSingleFile=true',"
+        Replace = "    '-p:PublishSingleFile=false',"
+        Filter  = 'FullyQualifiedName~BuildScriptTests'
+    },
+    @{
+        Name    = 'the native library of the package is left beside the program'
+        File    = 'scripts\package.ps1'
+        Find    = "    '-p:IncludeNativeLibrariesForSelfExtract=true',"
+        Replace = "    '-p:IncludeNativeLibrariesForSelfExtract=false',"
+        Filter  = 'FullyQualifiedName~BuildScriptTests'
     },
     @{
         Name    = 'a text is replaced although it occurs more often than was said'
@@ -2763,15 +3527,24 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~LongPathTests'
     },
     @{
-        Name    = 'empty parts of the path are dropped when a directory is removed'
-        File    = 'installer\YavInstall.ps1'
-        Find    = 'Where-Object { (ConvertTo-YavComparablePath $_) -ne $wanted })'
-        Replace = 'Where-Object { $_ -and (ConvertTo-YavComparablePath $_) -ne $wanted })'
-        Filter  = 'FullyQualifiedName~InstallerScriptTests'
+        Name    = 'the tables switch ANSI on for a pipe where GITHUB_ACTIONS is set'
+        File    = 'src\Yav.Console\Rendering\Ui.cs'
+        Find    = "            Enrichment = new ProfileEnrichment { UseDefaultEnrichers = false },`n            Out = new AnsiConsoleOutput(writer),"
+        Replace = "            Out = new AnsiConsoleOutput(writer),"
+        Filter  = 'FullyQualifiedName~ExecutableTests.Tables_reach_a_pipe_as_plain_text'
+    },
+    @{
+        Name    = 'the doctor names Windows Server after its build'
+        File    = 'src\Yav.Console\Doctor\Doctor.cs'
+        Find    = '        if (server)'
+        Replace = '        if (server && build < Windows11Build)'
+        Filter  = 'FullyQualifiedName~CliCommandTests.Doctor_names_windows_server'
     }
 )
 
 $project = Join-Path $RepoRoot 'tests\Yav.Tests\Yav.Tests.csproj'
+$results = Join-Path $RepoRoot 'artifacts\test-results\mutation-check'
+$trx = Join-Path $results 'mutation.trx'
 $survived = @()
 $killed = 0
 
@@ -2781,6 +3554,31 @@ function Get-MutationEdits {
     if ($Mutation.ContainsKey('Extra')) { $edits += $Mutation.Extra }
     return $edits
 }
+
+function Get-HangReport {
+    <#
+        Null when the time limit did not end the tests; otherwise the names of the tests that were running then,
+        as far as the test platform names them. Its blame collector records in the results that the limit was
+        reached. On the console, at the verbosity used here, the end looks like a crash of the test host.
+    #>
+    param([string]$Results, [string]$Output)
+
+    if (-not (Test-Path -LiteralPath $Results)) { return $null }
+    [xml]$xml = Get-Content -LiteralPath $Results -Raw
+    $reached = @($xml.GetElementsByTagName('RunInfo') | Where-Object { $_.InnerText -match 'inactivity time of \d+ seconds has elapsed' })
+    if ($reached.Count -eq 0) { return $null }
+
+    $names = @()
+    if ($Output -match '(?s)when the crash occurred:\s*(.*?)(\r?\n\s*\r?\n|$)') {
+        $names = @(($Matches[1] -split "`r?`n") | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    }
+
+    if ($names.Count -eq 0) { return 'a test' }
+    return $names -join ', '
+}
+
+$testArguments = @('--results-directory', $results, '--logger', 'trx;LogFileName=mutation.trx')
+if ($HangSeconds -gt 0) { $testArguments += @('--blame-hang-timeout', "${HangSeconds}s", '--blame-hang-dump-type', 'none') }
 
 # Every mutation is looked at before the first one is made: a text that is not in its file any more, or is
 # there more than once, would end the run somewhere in the middle, hours after it began.
@@ -2827,18 +3625,26 @@ foreach ($mutation in $selected) {
 
     try {
         [System.IO.File]::WriteAllText($path, $mutated)
-        $output = & $DotNet test $project -c Debug --nologo -v quiet --filter $mutation.Filter 2>&1 | Out-String
+        if (Test-Path -LiteralPath $trx) { Remove-Item -LiteralPath $trx -Force }
+        $output = & $DotNet test $project -c Debug --nologo -v quiet --filter $mutation.Filter @testArguments 2>&1 | Out-String
         $failed = $LASTEXITCODE -ne 0
 
         # Whatever kept the code from being built: an error of the compiler, of an analyzer or of the build.
         # Tests that were never run noticed nothing. Where tests were run, what looks like such an error is
-        # something a test wrote.
-        $ran = $output -match '(Passed|Failed)!\s+-\s+Failed:'
+        # something a test wrote. Tests that the time limit ended were run.
+        $hung = if ($failed) { Get-HangReport -Results $trx -Output $output } else { $null }
+        $ran = $null -ne $hung -or $output -match '(Passed|Failed)!\s+-\s+Failed:'
         $notBuilt = -not $ran -and ($output -match '(?m)\berror\s+[A-Z]+\d+\b' -or $output -match 'Build FAILED')
         $count = if ($output -match 'Failed!\s+-\s+Failed:\s+(\d+)') { [int]$Matches[1] } else { 0 }
         if ($notBuilt) {
             Write-Host ("INVALID   {0}  (the mutation does not compile)" -f $mutation.Name) -ForegroundColor Yellow
             $survived += "$($mutation.Name) [did not compile]"
+        }
+        elseif ($failed -and $null -ne $hung) {
+            # A test that does not end did not pass: the mutation is noticed, by the time limit and not by an assertion.
+            $failures = if ($count -gt 0) { "{0} test(s) failed, and " -f $count } else { '' }
+            Write-Host ("KILLED    {0}  ({1}killed by the time limit: no test began or ended for {2} s; still running: {3})" -f $mutation.Name, $failures, $HangSeconds, $hung) -ForegroundColor Green
+            $killed++
         }
         elseif ($failed -and $count -gt 0) {
             Write-Host ("KILLED    {0}  ({1} test(s) failed)" -f $mutation.Name, $count) -ForegroundColor Green

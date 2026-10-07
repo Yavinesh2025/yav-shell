@@ -60,6 +60,20 @@ public class SettingsStoreTests
     }
 
     [Fact]
+    public void A_no_to_the_offer_to_install_is_saved_and_read_back()
+    {
+        // Without it, a console that was open already would ask again at every start.
+        var (store, paths, home) = Store();
+        using var cleanup = home;
+        Assert.False(store.Load().Settings.InstallOfferDeclined);
+
+        Assert.True(store.Save(new AppSettings { InstallOfferDeclined = true }));
+
+        Assert.True(store.Load().Settings.InstallOfferDeclined);
+        Assert.Contains("\"installOfferDeclined\": true", File.ReadAllText(paths.SettingsFile), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_file_that_cannot_be_read_is_kept_aside_and_never_overwritten_in_silence()
     {
         var (store, paths, home) = Store();

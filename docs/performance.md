@@ -1,11 +1,18 @@
 # Performance
 
-What was measured for version 0.1.1 on 2026-09-30, and how to measure it again. The two runs with
-real models were made on 2026-09-29 and 2026-09-30. The specification sets two targets for
-development: an interactive prompt within one second, and a command acknowledged within 200
-milliseconds. They are targets, not promises, and they are about what YAV does itself. **How long a
-model takes is part of one section only**, [Two runs with real models](#two-runs-with-real-models).
-Everywhere else the agents were the scripted stand-in, and YAV cannot make inference faster.
+What was measured, and how to measure it again. Unless a section says otherwise, the measurements
+were made with version 0.1.1 on 2026-09-30. The two runs with real models were made on 2026-09-29
+and 2026-09-30, with 0.1.0 and 0.1.1. Version 0.2.0 packages the program as one file,
+`dist\yav.exe`, that installs itself; [The layout of the package](#the-layout-of-the-package) has
+what was measured about starting it. Of the others, only the times in
+[Starting the program](#starting-the-program) were taken again with 0.2.0, by the checks of the
+package on 2026-10-07; everything else is of 0.1.1.
+
+The specification sets two targets for development: an interactive prompt within one second, and a
+command acknowledged within 200 milliseconds. They are targets, not promises, and they are about what
+YAV does itself. **How long a model takes is part of one section only**,
+[Two runs with real models](#two-runs-with-real-models). Everywhere else the agents were the scripted
+stand-in, and YAV cannot make inference faster.
 
 ## The machine
 
@@ -23,9 +30,10 @@ from Windows Sandbox on the same machine.
 
 ## Against the targets
 
-Measured on 2026-09-30 with the program of the package, `dist\yav-shell-0.1.1-win-x64\yav.exe`, in
-the pseudo console of Windows. The times are those at which output arrived at the console, seven
-starts each.
+Measured on 2026-09-30 with the program of the package of 0.1.1,
+`dist\yav-shell-0.1.1-win-x64\yav.exe`, in the pseudo console of Windows. The times are those at
+which output arrived at the console, seven starts each. They were not repeated with the
+`dist\yav.exe` of 0.2.0.
 
 | | Target | First | Median of the others | Slowest |
 |---|---:|---:|---:|---:|
@@ -35,7 +43,9 @@ starts each.
 | From Enter until `/status` has answered completely | | 85 ms | 71 ms | 93 ms |
 
 The prompt does not wait for the agents: what they offer is asked for when it is needed. `/status`
-is one of the larger answers; it reads the state of the task from the database.
+is one of the larger answers; it reads the state of the task from the database. Since 0.2.0, `yav`
+started from a copy that is not installed may first ask whether to install it; the time that
+question waits for you is not part of times like these.
 
 The shell measures the same from inside and shows it with `/latency`: the time from start to
 prompt, and for every command the time from Enter until its first line is written.
@@ -46,16 +56,28 @@ prompt, and for every command the time from Enter until its first line is writte
 
 | Where | First start | Median of five more | Slowest |
 |---|---:|---:|---:|
-| This machine, from the package, in an environment without .NET and Git | 98 ms | 70 ms | 76 ms |
-| A new Windows (Windows Sandbox), from the package | 339 ms | 61 ms | 63 ms |
+| 0.2.0: this machine, `dist\yav.exe`, in an environment without .NET and Git | 118 ms | 62 ms | 62 ms |
+| 0.2.0: a new Windows (Windows Sandbox), `dist\yav.exe` | 1908 ms | 1815 ms | 1871 ms |
+| 0.1.1: this machine, from the folder of the package, in an environment without .NET and Git | 98 ms | 70 ms | 76 ms |
+| 0.1.1: a new Windows (Windows Sandbox), from the folder of the package | 339 ms | 61 ms | 63 ms |
 
-| | This machine | A new Windows |
+| 0.1.1 | This machine | A new Windows |
 |---|---:|---:|
 | `yav doctor --json`, the first time, no agent installed | 193 ms | 434 ms |
 | The shell reading `/help`, `/status`, `/exit` from a pipe | 250 ms | 393 ms |
 
-These, and everything below that uses scripted agents, were measured with the package of this
-version as it was before its last changes: a section that tells Model A which checks YAV runs
+| 0.2.0 | This machine | A new Windows |
+|---|---:|---:|
+| `yav doctor --json`, the first time, no agent installed | 144 ms | 1987 ms |
+| The shell reading `/help`, `/status`, `/exit` from a pipe | 168 ms | 1975 ms |
+
+The numbers of 0.2.0 were taken on 2026-10-07 by `scripts\verify-package.ps1` on this machine and
+by `scripts\verify-package.ps1 -Sandbox` in Windows Sandbox; `yav doctor` and the shell were started
+once each. The times of Windows Sandbox are those of a new Windows whose Microsoft Defender scans a
+new file of 95 MB; they cannot be compared with those of this machine.
+
+The numbers of 0.1.1, and everything below that uses scripted agents, were measured with the package
+of 0.1.1 as it was before its last changes: a section that tells Model A which checks YAV runs
 itself, the copyright in the properties of the program, the versions of the agents that are called
 tested, and how a turn is reported that YAV ends together with the agent's process. None of them
 changes what is measured, and the measurements were not repeated after them.
@@ -84,7 +106,7 @@ hashing and keeping records: every file is hashed completely whenever it matters
 through size or date.
 
 All seven runs took between 2.10 and 2.24 s. They were measured on 2026-09-30 with the package of
-this version, on a quiet machine. A measurement a few minutes earlier, right after the package had
+0.1.1, on a quiet machine. A measurement a few minutes earlier, right after the package had
 been built, gave a median of 3.03 s, with every stage slower; that is how much the numbers depend on
 what else a machine does.
 
@@ -100,7 +122,7 @@ That part took 0.27 s then, and the whole process went from 2.37 s to 1.97 s.
 ## The benchmark, with scripted agents
 
 12 tasks, 4 ways of working, 3 repetitions, in an order that was shuffled: 156 runs, all of which
-ended with the tasks' own checks passing. Made on 2026-09-30 with the package of this version;
+ended with the tasks' own checks passing. Made on 2026-09-30 with the package of 0.1.1;
 `bench\results\20260930-003039-fixture\report.md` has every run. The same benchmark was made twice
 before, on 2026-09-29 with version 0.1.0: `20260929-135658-fixture`, and
 `20260929-103458-fixture` before the change above.
@@ -123,8 +145,9 @@ What this says:
   solution, so every run succeeds, and no run consumes anything.
 
 A benchmark with real models is prepared and was not run. It sends requests through your accounts
-and starts only with `--i-authorize-usage` and your `yes`; `bench\README.md` describes it. The one
-run with real models that was made is not part of the benchmark: it compares nothing.
+and starts only with `--i-authorize-usage` and your `yes`; `bench\README.md` describes it. The two
+runs with real models that were made, with 0.1.0 and 0.1.1, are not part of the benchmark: they compare
+nothing.
 
 ## Two runs with real models
 
@@ -132,7 +155,7 @@ The same task twice: `gpt-6-astra` through the Codex app server implemented, `op
 Code reviewed, both at effort `max`. [verification.md](verification.md) tells what happened. **A run
 is one measurement. It is not a forecast.**
 
-### The second, on 2026-09-30, with this version
+### The second, on 2026-09-30, with version 0.1.1
 
 `yav run` went from the request to a result that was ready to apply without a person and without a
 pause. The times are those `/latency` showed for the run afterwards
@@ -223,18 +246,31 @@ such knowledge may be; and recording the time the copy for checking takes.
 
 ## The layout of the package
 
-The two layouts were compared on 2026-09-29 with version 0.1.0; the folder of 0.1.1 has 227 files
-and 86 MB.
+Since 0.2.0 the package is one file, `dist\yav.exe`. It holds the program, .NET, the native library
+of SQLite, and the files it puts next to itself when it installs itself: the license, the notices,
+the documentation and the examples. A program that installs itself by being run has to be one file;
+that is why the single file is the package now.
 
 | | Files | Size | `yav --version`, first start | Later starts |
 |---|---:|---:|---:|---:|
-| Folder: the program next to its libraries (what the package is) | 226 | 86 MB | 66 ms | 58 ms |
-| Single file: everything in `yav.exe` | 1 | 94 MB | 125 ms | 61 ms |
+| 0.2.0: the single file, which is the package | 1 | 95.6 MB | 118 ms | 62 ms |
+| 0.1.0, 2026-09-29: the folder, the program next to its libraries (what the package of 0.1.0 and 0.1.1 was) | 226 | 86 MB | 66 ms | 58 ms |
+| 0.1.0, 2026-09-29: the single file, everything in `yav.exe` | 1 | 94 MB | 125 ms | 61 ms |
 
-The single file unpacks a native library (SQLite, 1.9 MB) into a directory of the user when it is
-started for the first time. The folder writes nothing anywhere and every one of its files can be
-compared with the manifest, so the folder is what is packaged. `scripts\package.ps1 -Layout
-single-file` builds the other.
+The 0.2.0 row was measured on 2026-10-07 by `scripts\clean-machine-check.ps1`, which
+`scripts\verify-package.ps1` runs in Windows PowerShell 5.1, on this machine with a PATH that holds
+nothing but Windows and a directory for temporary files of its own. It started `yav --version` hidden
+and with its input and output redirected, once and then five times more; "later starts" is the
+median of the five, and the slowest of them took 62 ms as well.
+
+The single file unpacks a native library (SQLite, 1.9 MB in 0.1.0) into a directory of the user when
+it is started for the first time; the first start is slower for that. The directory is
+`%TEMP%\.net\yav\<id>\`, one for each build (the .NET host does this for a program that is one file; seen
+as `%TEMP%\.net\yav\iFbvwa4l76QJ\e_sqlite3.dll` while 0.2.0 was packaged). A file deleted from it is
+unpacked again at the next start, and the folders of earlier versions are not removed.
+In 0.1.0 and 0.1.1 the folder was packaged, because it writes nothing anywhere and each of its files
+could be compared with a manifest; the folder of 0.1.1 had 227 files and 86 MB. The SHA-256 of the
+single file is in `dist\yav.exe.sha256`.
 
 ## Not measured
 
@@ -244,12 +280,15 @@ single-file` builds the other.
   and the size of the files; the projects here have a handful of small files.
 * A machine with real-time protection turned on, a slower disk, or a network drive.
 * The first start after a restart of Windows, except on the new Windows of the sandbox.
+* How long `yav install` and `yav uninstall` take.
+* A downloaded `yav.exe`: what the check of Windows for programs from the internet adds to its
+  first start.
 
 ## Measuring again
 
 ```powershell
 scripts\package.ps1 -SkipTests
-$env:YAV_MEASURE_EXE = (Resolve-Path dist\yav-shell-0.1.1-win-x64\yav.exe)
+$env:YAV_MEASURE_EXE = (Resolve-Path dist\yav.exe)
 scripts\dev-check.ps1 -Filter "FullyQualifiedName~ConsoleMeasurements"   # writes artifacts\measurements\console.json and run.json
 scripts\verify-package.ps1                                                 # starts, in an environment without .NET
 scripts\verify-package.ps1 -Sandbox                                        # the same on a new Windows
