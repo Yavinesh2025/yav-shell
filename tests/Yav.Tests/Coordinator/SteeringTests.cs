@@ -26,6 +26,26 @@ public class SteeringTests
         return harness.Coordinator.ActiveRunFor(harness.ProjectPath)!;
     }
 
+    /// <summary>
+    /// Steers once the turn the stand-in received has been taken up by YAV. The stand-in counts a turn/start when it reads it,
+    /// a moment before YAV has its answer; until then there is no turn to steer, and steering is refused, as it is for a user.
+    /// </summary>
+    private static async Task<bool> SteerOnceTheTurnRunsAsync(CoordinatorHarness harness, string runId, string text)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!await harness.Coordinator.SteerAsync(runId, text, CancellationToken.None))
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                return false;
+            }
+
+            await System.Threading.Tasks.Task.Delay(25);
+        }
+
+        return true;
+    }
+
     /// <summary>What a turn of the stand-in for Codex waits for: the test has steered, or tried to.</summary>
     private const string Steered = "steered";
 
@@ -46,7 +66,7 @@ public class SteeringTests
 
         var running = harness.RunAsync(Task);
         var runId = await ActiveRunAsync(harness, () => Implementing(harness));
-        var accepted = await harness.Coordinator.SteerAsync(runId, Addition, CancellationToken.None);
+        var accepted = await SteerOnceTheTurnRunsAsync(harness, runId, Addition);
         Signal(harness);
         var outcome = await running;
 
@@ -72,7 +92,7 @@ public class SteeringTests
 
         var running = harness.RunAsync(Task);
         var runId = await ActiveRunAsync(harness, () => Implementing(harness));
-        await harness.Coordinator.SteerAsync(runId, Addition, CancellationToken.None);
+        await SteerOnceTheTurnRunsAsync(harness, runId, Addition);
         Signal(harness);
         var outcome = await running;
 
@@ -99,7 +119,7 @@ public class SteeringTests
 
         var running = harness.RunAsync(Task);
         var runId = await ActiveRunAsync(harness, () => harness.Observer.States().LastOrDefault() == RunState.Repairing && harness.Agents.CodexRequests("turn/start").Count == 3);
-        var accepted = await harness.Coordinator.SteerAsync(runId, Addition, CancellationToken.None);
+        var accepted = await SteerOnceTheTurnRunsAsync(harness, runId, Addition);
         Signal(harness);
         var outcome = await running;
 
@@ -240,7 +260,7 @@ public class SteeringTests
             .ReviewerTurn(Step.Review("pass"));
         var running = harness.RunAsync(Task);
         var runId = await ActiveRunAsync(harness, () => Implementing(harness));
-        await harness.Coordinator.SteerAsync(runId, Addition, CancellationToken.None);
+        await SteerOnceTheTurnRunsAsync(harness, runId, Addition);
         Signal(harness);
         var first = await running;
 
