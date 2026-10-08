@@ -261,7 +261,7 @@ public class ShellModelCommandTests
             "Quality Lock: ON: models, effort, review and billing route are held to what you chose",
             "Policy: strict: a setting the provider did not confirm blocks the run",
             "Review by Model B: required, in its own conversation, read-only",
-            "Required checks: required: a project with no approved check that is required does not run",
+            "Required checks: optional (the default): a project with no approved check that is required runs on the review alone",
             "Repair cycles: 2 after the first candidate",
             "Failures that were already there: your decision: waive them, or fix them first",
             "It cannot make a model's answer correct or the same twice.");
@@ -270,11 +270,11 @@ public class ShellModelCommandTests
     [Theory]
     [InlineData("/quality lock off", "Quality Lock: OFF.")]
     [InlineData("/quality strict off", "Relaxed policy: a setting the provider did not confirm is shown as Requested / Unverified and the run goes on.")]
-    [InlineData("/quality gates optional", "Required checks are optional: a candidate can be accepted although nothing was run to check it.")]
+    [InlineData("/quality gates optional", "Required checks are optional, the default: a project with no approved check that is required runs on the review alone, without asking.")]
     [InlineData("/quality preexisting repair", "A required check that already failed before the task is sent to Model A for repair, within the repair limit.")]
     public async Task Quality_is_changed_only_by_the_user_and_says_what_the_change_means(string command, string expected)
     {
-        await using var shell = await StartedAsync();
+        await using var shell = await StartedAsync(new ShellOptions { RequireChecks = true });
 
         await shell.EnterAndWaitAsync(command);
 

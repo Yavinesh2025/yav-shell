@@ -156,7 +156,7 @@ public class CliCommandTests
     [Fact]
     public async Task A_project_without_approved_checks_is_blocked_and_nothing_is_sent()
     {
-        await using var shell = new ShellHarness();
+        await using var shell = new ShellHarness(new ShellOptions { RequireChecks = true });
         shell.Agents.ImplementerTurn(Step.Write("src/app.txt", "fixed\n"));
 
         var ran = await RunAsync(shell, Run(shell));

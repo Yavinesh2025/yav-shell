@@ -64,6 +64,7 @@ public sealed class ShellHarness : IAsyncDisposable
         {
             ModelA = options.ChooseModels ? new RoleSelection(CodexAppServerAdapter.AdapterId, "model-a") : null,
             ModelB = options.ChooseModels ? new RoleSelection(CodexAppServerAdapter.AdapterId, "model-b") : null,
+            RequireGates = options.RequireChecks,
         };
         foreach (var (id, flavor) in new[]
         {
@@ -513,6 +514,9 @@ public sealed record ShellOptions
     public bool ChooseModels { get; init; } = true;
 
     public bool TrustProject { get; init; } = true;
+
+    /// <summary>True as after /quality gates required: a project with no approved check that is required does not run.</summary>
+    public bool RequireChecks { get; init; }
 
     /// <summary>The editor for the time no run is active. Null uses the simple editor throughout, which a test can drive key by key.</summary>
     public IIdleEditor? IdleEditor { get; init; }

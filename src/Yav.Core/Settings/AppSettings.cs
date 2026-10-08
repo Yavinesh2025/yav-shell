@@ -61,7 +61,14 @@ public sealed record AppSettings
 
     public bool Strict { get; init; } = true;
 
-    public bool RequireGates { get; init; } = true;
+    /// <summary>
+    /// True after the user typed /quality gates required: a project with no approved check that is required does not
+    /// run. False, the default, runs such a project on the review of Model B alone and says so. It is kept as
+    /// "requireChecks": the "requireGates" that 0.2.0 wrote into every settings.json was true for everyone who never
+    /// chose, so it is not read, and a choice of required made then is made again with /quality gates required.
+    /// </summary>
+    [JsonPropertyName("requireChecks")]
+    public bool RequireGates { get; init; }
 
     public bool Adaptive { get; init; }
 

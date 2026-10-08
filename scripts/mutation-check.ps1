@@ -677,6 +677,45 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~AcceptanceGateTests'
     },
     @{
+        Name    = 'checks: required again by default'
+        File    = 'src\Yav.Core\Settings\AppSettings.cs'
+        Find    = '    public bool RequireGates { get; init; }'
+        Replace = '    public bool RequireGates { get; init; } = true;'
+        Filter  = 'FullyQualifiedName~SettingsStoreTests|FullyQualifiedName~ReviewOnlyTests.By_default'
+    },
+    @{
+        Name    = 'checks: the 0.2.0 requireGates key is read again'
+        File    = 'src\Yav.Core\Settings\AppSettings.cs'
+        Find    = '    [JsonPropertyName("requireChecks")]'
+        Replace = '    [JsonPropertyName("requireGates")]'
+        Filter  = 'FullyQualifiedName~SettingsStoreTests.The_requireGates'
+    },
+    @{
+        Name    = 'checks: optional runs on the review alone without saying so'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Prepare.cs'
+        Find    = '                    null, ProblemSeverity.Warning, "checks-optional",'
+        Replace = '                    null, ProblemSeverity.Info, "checks-optional-unsaid",'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests.With_checks_optional'
+    },
+    @{
+        Name    = 'checks: detected checks are not suggested'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Prepare.cs'
+        Find    = '                if (validation.Detect(project).Count > 0)'
+        Replace = '                if (validation.Detect(project).Count > 99)'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests.With_checks_optional_checks_the_project_suggests'
+    },
+    @{
+        Name    = 'checks: optional accepts on the review alone although the checks cannot be read'
+        File    = 'src\Yav.Coordinator\RunCoordinator.Prepare.cs'
+        Find    = '        if (!policy.RequireGates && !state.Effective.RequiredGates.Any())
+        {
+            if (state.Errors.Count > 0 || state.Trust == ConfigurationTrust.Invalid)'
+        Replace = '        if (!policy.RequireGates && !state.Effective.RequiredGates.Any())
+        {
+            if (state.Errors.Count < 0 && state.Trust == ConfigurationTrust.Invalid)'
+        Filter  = 'FullyQualifiedName~ReviewOnlyTests.With_checks_optional_a_configuration_file'
+    },
+    @{
         Name    = 'first run: a request is not sent again once what blocked it was settled'
         File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
         Find    = '        await StartRunAsync(sent with { Round = sent.Round + 1, Settled = all }, cancellationToken).ConfigureAwait(false);'

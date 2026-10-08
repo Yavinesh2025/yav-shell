@@ -31,6 +31,12 @@ public class ReviewOnlyTests
     private static IEnumerable<StageNote> ReviewOnlyNotes(CoordinatorHarness harness) =>
         harness.Observer.Notes(Stages.Prepare).Where(n => n.Message.Contains("accepted on the review of Model B alone", StringComparison.Ordinal));
 
+    private static IEnumerable<StageNote> OptionalNotes(CoordinatorHarness harness) =>
+        harness.Observer.Notes(Stages.Prepare).Where(n => n.Message.Contains("accepted on Model B's review alone", StringComparison.Ordinal));
+
+    private static IEnumerable<StageNote> DetectNotes(CoordinatorHarness harness) =>
+        harness.Observer.Notes(Stages.Prepare).Where(n => n.Message.Contains("approve them with /test detect", StringComparison.Ordinal));
+
     [Fact]
     public async Task A_project_without_approved_checks_does_not_run_until_the_review_alone_is_accepted_for_it()
     {
@@ -258,12 +264,92 @@ public class ReviewOnlyTests
         harness.AssertEnded(RunOutcomeKind.ReadyToApply, outcome);
         Assert.Empty(ReviewOnlyNotes(harness));
         Assert.DoesNotContain(outcome.Problems, p => p.Code == "review-only");
+        Assert.Single(OptionalNotes(harness));
+    }
+
+    [Fact]
+    public async Task With_checks_optional_a_project_without_checks_runs_on_the_review_alone_and_says_so_in_one_line()
+    {
+        await using var harness = WithoutChecks();
+        harness.Configuration = harness.Configuration with { Policy = new QualityPolicy(RequireGates: false) };
+
+        var outcome = await harness.RunAsync(Task);
+
+        harness.AssertEnded(RunOutcomeKind.ReadyToApply, outcome);
+        Assert.True(outcome.Decision!.Accepted);
+        Assert.Empty(harness.Database.GetGateResults(outcome.RunId));
+        var note = Assert.Single(harness.Observer.Notes(Stages.Prepare), n => n.Message.Contains("Model B's review alone", StringComparison.Ordinal));
+        Assert.Equal(NoteLevel.Warning, note.Level);
+        Assert.DoesNotContain('\n', note.Message);
+
+        // Nothing in the project suggests a check, so nothing is suggested.
+        Assert.Empty(DetectNotes(harness));
+    }
+
+    [Fact]
+    public async Task With_checks_optional_checks_the_project_suggests_are_named_but_not_run()
+    {
+        await using var harness = WithoutChecks();
+        harness.Configuration = harness.Configuration with { Policy = new QualityPolicy(RequireGates: false) };
+        harness.WriteProject("Cargo.toml", "[package]\nname = \"app\"\n");
+
+        var outcome = await harness.RunAsync(Task);
+
+        harness.AssertEnded(RunOutcomeKind.ReadyToApply, outcome);
+        Assert.Empty(harness.Database.GetGateResults(outcome.RunId));
+        Assert.Single(OptionalNotes(harness));
+        var suggestion = Assert.Single(DetectNotes(harness));
+        Assert.Equal(NoteLevel.Info, suggestion.Level);
+    }
+
+    [Fact]
+    public async Task With_checks_optional_an_approved_required_check_still_runs_and_must_pass()
+    {
+        await using var harness = WithoutChecks();
+        harness.Configuration = harness.Configuration with { Policy = new QualityPolicy(RequireGates: false) };
+        harness.TrustGates(CoordinatorHarness.TextGate("tests", "src/app.txt", "fixed"));
+
+        var outcome = await harness.RunAsync(Task);
+
+        harness.AssertEnded(RunOutcomeKind.ReadyToApply, outcome);
+        Assert.Equal(GateStatus.Passed, Assert.Single(harness.Database.GetGateResults(outcome.RunId)).Status);
+        Assert.Empty(OptionalNotes(harness));
+    }
+
+    [Fact]
+    public async Task With_checks_optional_a_configuration_file_that_cannot_be_used_keeps_the_review_alone_from_accepting()
+    {
+        await using var harness = WithoutChecks();
+        harness.Configuration = harness.Configuration with { Policy = new QualityPolicy(RequireGates: false) };
+        harness.WriteProject(harness.Validation.ConfigurationFileName, "{ \"gates\": [ ");
+
+        var outcome = await harness.RunAsync(Task);
+
+        harness.AssertEnded(RunOutcomeKind.Blocked, outcome);
+        Assert.Contains(outcome.Problems, p => p.Code == "review-only-unknown" && p.Severity == ProblemSeverity.Blocking);
+        Assert.Empty(OptionalNotes(harness));
+        Assert.Empty(harness.Agents.CodexRequests("turn/start"));
+    }
+
+    [Fact]
+    public async Task By_default_yav_run_runs_a_project_without_checks_on_the_review_alone()
+    {
+        await using var shell = new ShellHarness();
+        shell.Agents
+            .ImplementerTurn(Step.Write("src/app.txt", "fixed\n"), Step.Message("Done."))
+            .ReviewerTurn(Step.Review("pass"));
+
+        var (exitCode, result) = await YavRunAsync(shell);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("ready_to_apply", result.GetProperty("outcome").GetString());
+        Assert.True(result.GetProperty("acceptance").GetProperty("accepted").GetBoolean());
     }
 
     [Fact]
     public async Task Yav_run_honors_the_acceptance_of_the_review_alone_as_the_shell_does()
     {
-        await using var shell = new ShellHarness();
+        await using var shell = new ShellHarness(new ShellOptions { RequireChecks = true });
         shell.Agents
             .ImplementerTurn(Step.Write("src/app.txt", "fixed\n"), Step.Message("Done."))
             .ReviewerTurn(Step.Review("pass"));

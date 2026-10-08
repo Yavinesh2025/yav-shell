@@ -386,7 +386,7 @@ public class ShellRunCommandTests
     [Fact]
     public async Task Without_approved_checks_nothing_runs_and_a_request_is_blocked_before_anything_is_sent()
     {
-        await using var shell = await StartedAsync(arrange: s => s.Agents.ImplementerTurn(Step.Write("src/app.txt", "fixed\n")));
+        await using var shell = await StartedAsync(new ShellOptions { RequireChecks = true }, arrange: s => s.Agents.ImplementerTurn(Step.Write("src/app.txt", "fixed\n")));
 
         await shell.EnterAndWaitAsync("/test");
         shell.AssertShows("No check is approved for this project. /test detect proposes some from what the project contains.");
