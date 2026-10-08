@@ -1,16 +1,16 @@
 # Test results
 
-The complete run of the automated tests on 2026-10-07 15:25 UTC, written by `scripts\summarize-tests.ps1`.
+The complete run of the automated tests on 2026-10-08 06:42 UTC, written by `scripts\summarize-tests.ps1`.
 The agents were the scripted stand-in: no test sends a request to a model. The tests that talk to the
 installed agents are not part of this run; `docs\verification.md` says what they found.
 
 | | |
 |---|---:|
-| Tests | 2637 |
-| Passed | 2637 |
+| Tests | 2670 |
+| Passed | 2670 |
 | Failed | 0 |
 | Not run | 0 |
-| Time | 12.1 minutes |
+| Time | 15.3 minutes |
 
 | Class | Passed | Failed | Not run |
 |---|---:|---:|---:|
@@ -34,7 +34,7 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Console.ApprovalAnswerTests | 35 | 0 | 0 |
 | Console.ApprovalDescriptionTests | 14 | 0 | 0 |
 | Console.ArgumentSplittingTests | 7 | 0 | 0 |
-| Console.CliCommandTests | 37 | 0 | 0 |
+| Console.CliCommandTests | 38 | 0 | 0 |
 | Console.CommandCatalogTests | 31 | 0 | 0 |
 | Console.CommandLineTests | 51 | 0 | 0 |
 | Console.InputClassifierTests | 21 | 0 | 0 |
@@ -45,14 +45,15 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Console.PlainApprovalTests | 11 | 0 | 0 |
 | Console.RecordedRequestTests | 1 | 0 | 0 |
 | Console.RunEventFormatterTests | 51 | 0 | 0 |
-| Console.ScreenTests | 246 | 0 | 0 |
-| Console.SettingsStoreTests | 8 | 0 | 0 |
+| Console.RunProgressTests | 9 | 0 | 0 |
+| Console.ScreenTests | 250 | 0 | 0 |
+| Console.SettingsStoreTests | 9 | 0 | 0 |
 | Console.ShellLifetimeTests | 4 | 0 | 0 |
-| Console.ShellModelCommandTests | 59 | 0 | 0 |
+| Console.ShellModelCommandTests | 60 | 0 | 0 |
 | Console.ShellRecordCommandTests | 65 | 0 | 0 |
 | Console.ShellRunCommandTests | 61 | 0 | 0 |
 | Console.ShellSetupTests | 39 | 0 | 0 |
-| Console.ShellTests | 37 | 0 | 0 |
+| Console.ShellTests | 40 | 0 | 0 |
 | Coordinator.AdaptiveModeTests | 5 | 0 | 0 |
 | Coordinator.ApprovalTests | 6 | 0 | 0 |
 | Coordinator.ChecksAndSourceTests | 12 | 0 | 0 |
@@ -69,7 +70,7 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Coordinator.ProtectedChangeTests | 3 | 0 | 0 |
 | Coordinator.RepairLoopTests | 16 | 0 | 0 |
 | Coordinator.ReviewerBoundaryTests | 4 | 0 | 0 |
-| Coordinator.ReviewOnlyTests | 14 | 0 | 0 |
+| Coordinator.ReviewOnlyTests | 19 | 0 | 0 |
 | Coordinator.RunPipelineTests | 13 | 0 | 0 |
 | Coordinator.SafeguardTests | 18 | 0 | 0 |
 | Coordinator.SessionSlotTests | 4 | 0 | 0 |
@@ -84,6 +85,7 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Coordinator.WorkspaceChoiceTests | 5 | 0 | 0 |
 | Coordinator.WorkspacePathsTests | 19 | 0 | 0 |
 | Core.AcceptanceGateTests | 36 | 0 | 0 |
+| Core.AccountRouteTests | 9 | 0 | 0 |
 | Core.AdaptivePolicyTests | 22 | 0 | 0 |
 | Core.ProfileResolverTests | 33 | 0 | 0 |
 | Core.PromptBuilderTests | 19 | 0 | 0 |

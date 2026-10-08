@@ -851,6 +851,17 @@ internal sealed class CodexAppServerSession : IAgentSession
             return;
         }
 
+        // A command that only reads is allowed without asking (the user's decision of 2026-10-08). Network access,
+        // write access below a folder and anything that is not a plain command are still asked about.
+        if (kind == ApprovalKind.CommandExecution && parameters.Text("kind") is null or "command"
+            && parameters.Child("networkApprovalContext") is null && parameters.Text("grantRoot") is null
+            && ReadOnlyCommands.IsReadOnly(parameters.Text("command")))
+        {
+            await AnswerAsync(method, () => _connection.RespondAsync(rawId, writer => writer.WriteString("decision", "accept"), CancellationToken.None)).ConfigureAwait(false);
+            await PublishAsync(new AgentNotice(Now, "Allowed without asking, because it only reads: " + parameters.Text("command"), IsWarning: false)).ConfigureAwait(false);
+            return;
+        }
+
         var approvalId = rawId.Trim('"');
         var command = parameters.Text("command");
         var details = new List<string>();

@@ -725,6 +725,13 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~CliCommandTests.Doctor_reports_a_subscription_the_agent_is_signed_in_to_as_used_without_asking'
     },
     @{
+        Name    = 'a command that chains or redirects is taken as one that only reads'
+        File    = 'src\Yav.Adapters\Codex\ReadOnlyCommands.cs'
+        Find    = "if (string.IsNullOrWhiteSpace(command) || command.IndexOfAny(Forbidden) >= 0)"
+        Replace = "if (string.IsNullOrWhiteSpace(command))"
+        Filter  = 'FullyQualifiedName~ReadOnlyCommandsTests'
+    },
+    @{
         Name    = 'a stale review is accepted'
         File    = 'src\Yav.Core\Runs\AcceptanceGate.cs'
         Find    = 'if (!review.Binding.Matches(expected, out var difference))'
