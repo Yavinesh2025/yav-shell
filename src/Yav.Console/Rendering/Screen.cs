@@ -44,6 +44,10 @@ public sealed class Screen
     // Rows the input occupies on the screen right now, and the row of those the cursor is in.
     private int _inputRows;
     private int _caretRow;
+    private int _caretColumn;
+
+    // Whether the status is on the screen now, as the first of the rows of the input.
+    private bool _statusDrawn;
 
     public Screen(ITerminal terminal, ScreenOptions options)
     {
@@ -145,6 +149,31 @@ public sealed class Screen
             }
 
             var builder = new StringBuilder();
+            if (_statusDrawn)
+            {
+                // Only its own row is written again: the input below it stays as it is, and so does the caret.
+                builder.Append('\r');
+                if (_caretRow > 0)
+                {
+                    builder.Append(Csi).Append(_caretRow.ToString(CultureInfo.InvariantCulture)).Append('A');
+                }
+
+                AppendStatus(builder, status);
+                builder.Append(Csi).Append('K').Append('\r');
+                if (_caretRow > 0)
+                {
+                    builder.Append(Csi).Append(_caretRow.ToString(CultureInfo.InvariantCulture)).Append('B');
+                }
+
+                if (_caretColumn > 0)
+                {
+                    builder.Append(Csi).Append(_caretColumn.ToString(CultureInfo.InvariantCulture)).Append('C');
+                }
+
+                Send(builder);
+                return;
+            }
+
             AppendErase(builder);
             AppendInput(builder);
             Send(builder);
@@ -339,6 +368,8 @@ public sealed class Screen
         builder.Append(Csi).Append('J');
         _inputRows = 0;
         _caretRow = 0;
+        _caretColumn = 0;
+        _statusDrawn = false;
     }
 
     private readonly record struct Cell(string Text, int Width, Tone Tone, bool Bold);
@@ -354,18 +385,15 @@ public sealed class Screen
         var statusRows = 0;
         if (_status is { } status)
         {
-            var first = status.Rows(Width - 1)[0];
-            foreach (var segment in first.Segments)
-            {
-                AppendStyled(builder, segment.Text, segment.Tone, segment.Bold);
-            }
-
+            AppendStatus(builder, status);
             statusRows = 1;
+            _statusDrawn = true;
             if (_input is null)
             {
                 builder.Append('\r');
                 _inputRows = 1;
                 _caretRow = 0;
+                _caretColumn = 0;
                 return;
             }
 
@@ -468,6 +496,15 @@ public sealed class Screen
 
         _inputRows = statusRows + row + 1;
         _caretRow = statusRows + caretRow;
+        _caretColumn = caretColumn;
+    }
+
+    private void AppendStatus(StringBuilder builder, Line status)
+    {
+        foreach (var segment in status.Rows(Width - 1)[0].Segments)
+        {
+            AppendStyled(builder, segment.Text, segment.Tone, segment.Bold);
+        }
     }
 
     private static void AddCells(List<Cell> cells, string text, Tone tone, bool bold)

@@ -371,6 +371,22 @@ public class ScreenTests
     }
 
     [Fact]
+    public void A_status_that_moves_writes_only_its_own_row_and_leaves_the_caret_where_it_was()
+    {
+        var (screen, terminal) = Rich(width: 40);
+        screen.ShowInput(new InputView(Prompt, "typing", 3));
+        screen.ShowStatus(Line.Of("working 1 with more text"));
+        var before = terminal.Raw.Length;
+        var caret = (terminal.CursorRow, terminal.CursorColumn);
+
+        screen.ShowStatus(Line.Of("working 2"));
+
+        Assert.DoesNotContain("typing", terminal.Raw[before..], StringComparison.Ordinal);
+        Assert.Equal(["working 2", "YAV C:\\p> typing"], terminal.Lines);
+        Assert.Equal(caret, (terminal.CursorRow, terminal.CursorColumn));
+    }
+
+    [Fact]
     public void A_status_wider_than_the_window_is_cut_to_one_row()
     {
         var (screen, terminal) = Rich(width: 20);

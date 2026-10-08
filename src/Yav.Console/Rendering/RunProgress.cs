@@ -14,7 +14,7 @@ namespace Yav.Console.Rendering;
 public sealed class RunProgress : IDisposable
 {
     /// <summary>How often the row is drawn again when nothing happens.</summary>
-    public static readonly TimeSpan Period = TimeSpan.FromMilliseconds(200);
+    public static readonly TimeSpan Period = TimeSpan.FromMilliseconds(400);
 
     private const int LongestActivity = 80;
 

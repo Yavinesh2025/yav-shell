@@ -40,6 +40,13 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~Yav.Tests.Console.ScreenTests|FullyQualifiedName~Yav.Tests.Console.RunProgressTests'
     },
     @{
+        Name    = 'a row of progress that moves writes the input again'
+        File    = 'src\Yav.Console\Rendering\Screen.cs'
+        Find    = '            if (_statusDrawn)'
+        Replace = '            if (_statusDrawn && _caretRow < 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Console.ScreenTests'
+    },
+    @{
         Name    = 'the row of progress stays when the run has finished'
         File    = 'src\Yav.Console\Rendering\RunProgress.cs'
         Find    = '        if (runEvent is RunFinished)'
