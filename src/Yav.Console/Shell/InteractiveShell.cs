@@ -807,6 +807,13 @@ public sealed partial class InteractiveShell
             }
 
             Observe(run, runEvent);
+
+            // The row goes before the result of a run is written, so the result is never written above it.
+            if (runEvent is RunFinished)
+            {
+                run.Progress?.Observe(runEvent);
+            }
+
             _screen.WriteLines(formatter.Format(runEvent));
             run.Progress?.Observe(runEvent);
         });
@@ -838,6 +845,13 @@ public sealed partial class InteractiveShell
         var observer = new Cli.DelegateObserver(runEvent =>
         {
             Observe(run, runEvent);
+
+            // The row goes before the result of a run is written, so the result is never written above it.
+            if (runEvent is RunFinished)
+            {
+                run.Progress?.Observe(runEvent);
+            }
+
             _screen.WriteLines(formatter.Format(runEvent));
             run.Progress?.Observe(runEvent);
         });

@@ -93,4 +93,31 @@ public class RunProgressTests
     [InlineData(3_725, "62m 05s")]
     public void Elapsed_time_is_shown_in_seconds_and_then_minutes(double seconds, string shown) =>
         Assert.Equal(shown, RunProgress.Elapsed(TimeSpan.FromSeconds(seconds)));
+
+    [Fact]
+    public void The_timer_does_not_draw_the_row_while_a_draft_is_typed_or_a_question_is_answered_but_an_event_does()
+    {
+        var (screen, terminal) = Rich(unicode: false);
+        screen.ShowInput(new InputView(Prompt, "fix th", 6));
+        using var progress = RunProgress.Start(screen, new ManualClock(), Timeout.InfiniteTimeSpan)!;
+        var shown = terminal.Raw.Length;
+
+        progress.Tick();
+        Assert.Equal(shown, terminal.Raw.Length);
+
+        screen.ShowInput(new InputView(Prompt, string.Empty, 0));
+        using (screen.HoldStatus())
+        {
+            shown = terminal.Raw.Length;
+            progress.Tick();
+            Assert.Equal(shown, terminal.Raw.Length);
+
+            progress.Observe(new StageNote("run", At, Stages.CodeA, "Model A works"));
+            Assert.Contains("Model A is working", terminal.Lines[^2], StringComparison.Ordinal);
+        }
+
+        var before = terminal.Lines[^2];
+        progress.Tick();
+        Assert.NotEqual(before, terminal.Lines[^2]);
+    }
 }

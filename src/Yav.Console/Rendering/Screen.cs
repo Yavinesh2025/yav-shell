@@ -37,6 +37,7 @@ public sealed class Screen
     private readonly Lock _gate = new();
     private readonly List<string> _deferred = [];
     private int _suspended;
+    private int _statusHolds;
     private InputView? _input;
     private Line? _status;
     private Action? _onNextWrite;
@@ -178,6 +179,32 @@ public sealed class Screen
             AppendInput(builder);
             Send(builder);
         }
+    }
+
+    /// <summary>
+    /// True while the user types a draft or answers a question: then a row of status is drawn again only when
+    /// something happened, never by a timer, so that no write of the screen comes between keys that are read.
+    /// </summary>
+    public bool StatusHeld
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _statusHolds > 0 || _input is { Text.Length: > 0 };
+            }
+        }
+    }
+
+    /// <summary>Holds a timer's drawing of the row of status back until the scope ends; see <see cref="StatusHeld"/>.</summary>
+    public IDisposable HoldStatus()
+    {
+        lock (_gate)
+        {
+            _statusHolds++;
+        }
+
+        return new StatusHold(this);
     }
 
     /// <summary>Removes the row of status, if one is shown, and leaves the input where it is.</summary>
@@ -514,6 +541,22 @@ public sealed class Screen
         {
             var element = elements.GetTextElement();
             cells.Add(new Cell(element, Math.Max(1, UnicodeWidth.GetWidth(element)), tone, bold));
+        }
+    }
+
+    private sealed class StatusHold(Screen screen) : IDisposable
+    {
+        private int _released;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                lock (screen._gate)
+                {
+                    screen._statusHolds--;
+                }
+            }
         }
     }
 

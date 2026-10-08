@@ -40,7 +40,7 @@ public sealed class RunProgress : IDisposable
         _frames = screen.Options.Unicode ? UnicodeFrames : AsciiFrames;
         _separator = screen.Options.Unicode ? " · " : " - ";
         Refresh();
-        _timer = period == Timeout.InfiniteTimeSpan ? null : clock.CreateTimer(_ => Refresh(), null, period, period);
+        _timer = period == Timeout.InfiniteTimeSpan ? null : clock.CreateTimer(_ => Tick(), null, period, period);
     }
 
     /// <summary>What the run is doing, as the row says it.</summary>
@@ -103,6 +103,15 @@ public sealed class RunProgress : IDisposable
         }
 
         Refresh();
+    }
+
+    /// <summary>What the timer does: moves the row, unless the user types or answers a question just now.</summary>
+    public void Tick()
+    {
+        if (!_screen.StatusHeld)
+        {
+            Refresh();
+        }
     }
 
     /// <summary>Draws the row again, one step further.</summary>

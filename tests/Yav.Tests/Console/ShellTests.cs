@@ -202,10 +202,36 @@ public class ShellTests
         Assert.Equal(shell.Prompt.TrimEnd(), shell.Terminal.Lines[^1]);
 
         await shell.WaitForRunToEndAsync();
+
+        // The row went before the result was written: it is never drawn again below the result.
+        var raw = Visible(shell.Terminal.Raw);
+        var lastRow = System.Text.RegularExpressions.Regex.Matches(raw, @"(starting|preparing|is working|is reviewing|running checks|applying) · \d")[^1].Index;
+        Assert.True(lastRow < raw.LastIndexOf($"Run {shell.Shell.Session.LastRunId}: ", StringComparison.Ordinal), "the row was drawn after the result");
         Assert.DoesNotContain(shell.Terminal.Lines, row => row.Contains("is working ·", StringComparison.Ordinal));
         Assert.DoesNotContain(shell.Terminal.Lines, row => row.Contains("is reviewing ·", StringComparison.Ordinal));
         Assert.Equal(shell.Prompt.TrimEnd(), shell.Terminal.Lines[^1]);
     }
+
+    [Fact]
+    public async Task A_run_that_is_continued_shows_the_row_of_progress_too_and_it_goes_with_the_run()
+    {
+        await using var shell = new ShellHarness().WithPassingRun();
+        shell.Start();
+        await shell.WaitForPromptAsync();
+        shell.Enter(Task);
+        await shell.WaitForRunToEndAsync();
+        var before = shell.Terminal.Raw.Length;
+
+        shell.Enter("/resume " + shell.Shell.Session.LastRunId);
+        await shell.WaitForRunToEndAsync();
+
+        Assert.Contains("starting ·", Visible(shell.Terminal.Raw[before..]), StringComparison.Ordinal);
+        Assert.DoesNotContain(shell.Terminal.Lines, row => row.Contains("starting ·", StringComparison.Ordinal));
+        Assert.Equal(shell.Prompt.TrimEnd(), shell.Terminal.Lines[^1]);
+    }
+
+    /// <summary>What was written, without the sequences that color it and move the cursor.</summary>
+    private static string Visible(string raw) => System.Text.RegularExpressions.Regex.Replace(raw, @"\u001b\[[0-9;?]*[A-Za-z]", string.Empty);
 
     [Fact]
     public async Task A_console_that_reads_lines_gets_no_row_of_progress()

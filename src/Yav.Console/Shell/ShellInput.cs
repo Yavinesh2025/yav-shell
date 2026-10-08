@@ -355,6 +355,7 @@ public sealed class ConsoleApprovals : IApprovalBroker
             _screen.WriteLines(question.Lines);
             var open = new OpenQuestion(this, question);
             using var withdrawn = cancellationToken.Register(() => open.Decided.TrySetCanceled(cancellationToken));
+            using var held = _screen.HoldStatus();
             using (_input.TakeKeyboard(open))
             {
                 return await open.Decided.Task.ConfigureAwait(false);
