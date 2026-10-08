@@ -216,6 +216,7 @@ public class ClaudeSessionTests
         var arguments = Arguments(fixture);
         Assert.Equal("acceptEdits", ValueOf(arguments, "--permission-mode"));
         Assert.Equal("stdio", ValueOf(arguments, "--permission-prompt-tool"));
+        Assert.Equal("AskUserQuestion", ValueOf(arguments, "--disallowedTools"));
         Assert.DoesNotContain("--restricted", arguments);
         Assert.DoesNotContain("--dangerously-skip-permissions", arguments);
         Assert.Equal("stream-json", ValueOf(arguments, "--output-format"));

@@ -525,6 +525,10 @@ internal sealed class ClaudeCliSession : IAgentSession, IReportsBeforeTurn
         else
         {
             arguments.AddRange(["--permission-mode", "acceptEdits"]);
+
+            // Its questions to the user are shown by Claude Code in a window of its own, which is not there, and would
+            // only be declined. Without the tool, a question is part of the answer, which YAV shows.
+            arguments.AddRange(["--disallowedTools", "AskUserQuestion"]);
             if (_request.Approvals == ApprovalMode.AskUser)
             {
                 arguments.AddRange(["--permission-prompt-tool", "stdio"]);

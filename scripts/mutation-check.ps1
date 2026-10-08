@@ -628,6 +628,13 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~RunStateMachineTests'
     },
     @{
+        Name    = 'claude as model a is offered a question to the user that nobody can see'
+        File    = 'src\Yav.Adapters\Claude\ClaudeCliSession.cs'
+        Find    = '            arguments.AddRange(["--disallowedTools", "AskUserQuestion"]);'
+        Replace = '            _ = arguments;'
+        Filter  = 'FullyQualifiedName~The_implementer_edits_freely_and_asks_the_user_for_everything_else'
+    },
+    @{
         Name    = 'a stale review is accepted'
         File    = 'src\Yav.Core\Runs\AcceptanceGate.cs'
         Find    = 'if (!review.Binding.Matches(expected, out var difference))'
