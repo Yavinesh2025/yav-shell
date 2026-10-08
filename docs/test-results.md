@@ -1,16 +1,16 @@
 # Test results
 
-The complete run of the automated tests on 2026-10-08 06:42 UTC, written by `scripts\summarize-tests.ps1`.
+The complete run of the automated tests on 2026-10-08 09:25 UTC, written by `scripts\summarize-tests.ps1`.
 The agents were the scripted stand-in: no test sends a request to a model. The tests that talk to the
 installed agents are not part of this run; `docs\verification.md` says what they found.
 
 | | |
 |---|---:|
-| Tests | 2670 |
-| Passed | 2670 |
+| Tests | 2696 |
+| Passed | 2696 |
 | Failed | 0 |
 | Not run | 0 |
-| Time | 15.3 minutes |
+| Time | 11.5 minutes |
 
 | Class | Passed | Failed | Not run |
 |---|---:|---:|---:|
@@ -19,7 +19,7 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Adapters.ClaudeDetectionTests | 20 | 0 | 0 |
 | Adapters.ClaudeSessionTests | 57 | 0 | 0 |
 | Adapters.ClaudeTurnTests | 24 | 0 | 0 |
-| Adapters.CodexApprovalAndControlTests | 40 | 0 | 0 |
+| Adapters.CodexApprovalAndControlTests | 41 | 0 | 0 |
 | Adapters.CodexClosedInputTests | 3 | 0 | 0 |
 | Adapters.CodexConnectionTests | 6 | 0 | 0 |
 | Adapters.CodexDetectionTests | 22 | 0 | 0 |
@@ -29,6 +29,7 @@ installed agents are not part of this run; `docs\verification.md` says what they
 | Adapters.CodexTurnTests | 36 | 0 | 0 |
 | Adapters.CodexWarningTests | 7 | 0 | 0 |
 | Adapters.JsonLineReaderTests | 11 | 0 | 0 |
+| Adapters.ReadOnlyCommandsTests | 25 | 0 | 0 |
 | Bench.BenchStatisticsTests | 18 | 0 | 0 |
 | Bench.BenchToolTests | 44 | 0 | 0 |
 | Console.ApprovalAnswerTests | 35 | 0 | 0 |

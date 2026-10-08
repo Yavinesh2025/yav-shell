@@ -300,6 +300,12 @@ While a run is active you can go on typing. What the run reports appears above y
 line stays as it is. A request you send then waits in the queue; it is not added to the running turn
 unless you choose that with `/queue steer <n>` and the agent supports it.
 
+Codex is not asked about two things, as you decided on 2026-10-08: a command that only reads (listing
+or reading files, such as `Get-ChildItem` or `Get-Content`, also inside `pwsh -Command`) and a change
+of files inside the isolated copy, which reaches your project only when you `/apply` it. A command that
+can write, chain, redirect or run code, every `git` and `rg` command (they can start other programs),
+network access and anything outside the copy are still asked about.
+
 When an agent asks for approval, YAV shows what it asked for and asks, for example:
 
 ```
