@@ -535,4 +535,16 @@ public class CliCommandTests
         Assert.Contains(ran.Lines, line => line.Contains("problem(s)", StringComparison.Ordinal));
         Assert.DoesNotContain('\u001b', ran.Output);
     }
+
+    [Fact]
+    public async Task Doctor_reports_a_subscription_the_agent_is_signed_in_to_as_used_without_asking()
+    {
+        await using var shell = new ShellHarness(new ShellOptions { AcknowledgeRoutes = false }).WithPassingRun();
+
+        var ran = await DoctorAsync(shell, json: false);
+
+        Assert.Contains(ran.Lines, line => line.StartsWith("  [ok]", StringComparison.Ordinal)
+            && line.Contains("Route: The subscription the agent is signed in to; used without asking.", StringComparison.Ordinal));
+        Assert.DoesNotContain(ran.Lines, line => line.Contains("Acknowledged by you.", StringComparison.Ordinal));
+    }
 }

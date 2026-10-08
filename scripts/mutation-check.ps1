@@ -663,6 +663,13 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~ShellModelCommandTests.A_subscription_the_agent_is_signed_in_to_is_used_without_asking_and_without_a_record'
     },
     @{
+        Name    = 'doctor does not say a subscription is used without asking'
+        File    = 'src\Yav.Console\Doctor\Doctor.cs'
+        Find    = '            case RoutePolicy.RequiresAcknowledgement when auth.UsedWithoutAsking:'
+        Replace = '            case RoutePolicy.RequiresAcknowledgement when auth.UsedWithoutAsking && !auth.UsedWithoutAsking:'
+        Filter  = 'FullyQualifiedName~CliCommandTests.Doctor_reports_a_subscription_the_agent_is_signed_in_to_as_used_without_asking'
+    },
+    @{
         Name    = 'a stale review is accepted'
         File    = 'src\Yav.Core\Runs\AcceptanceGate.cs'
         Find    = 'if (!review.Binding.Matches(expected, out var difference))'

@@ -220,7 +220,7 @@ public sealed class ClaudeCliAdapter : IAgentAdapter
                 + "Claude Code and other Anthropic applications, that developers of products should use an API key or a cloud provider, and that "
                 + "third parties may not offer Claude.ai login or relay subscription credentials. They also say this does not prevent a user from "
                 + "signing in to the unmodified Claude Code with their own subscription. YAV runs the unmodified CLI and never touches its "
-                + "credentials, but it cannot decide whether your use is covered: read " + PolicyUrl + " to decide; YAV uses this subscription without asking, and an API key is the alternative.",
+                + "credentials, but it cannot decide whether your use is covered: read " + PolicyUrl + ". YAV uses this subscription without asking; use an API key if your use is not covered.",
                 Source, now);
         }
 
