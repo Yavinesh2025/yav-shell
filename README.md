@@ -37,10 +37,13 @@ described below the steps.
    lists the commands.
 
 The first request asks, before anything is sent, for what only you can decide: which model implements
-and which reviews, chosen from the models the agents list for your accounts; whether YAV may use the
-account each agent is signed in to, billed as that agent reports; which commands of the project may
-run as its required checks, or that a candidate of this project may be accepted on the review alone;
-and, where it applies, that files Git ignores will be missing from the isolated copy of the project.
+and which reviews, chosen from the models the agents list for your accounts, and, where it applies,
+that a route that bills an API key per token may be used, and that files Git ignores will be missing
+from the isolated copy of the project. A subscription the agent is signed in to (the ChatGPT plan of
+Codex, a Claude subscription) is used without a question. A project without an approved required check
+runs on Model B's review alone; YAV names the checks it found in one line (`/test detect` approves them)
+and runs no command of the project you have not approved. While an agent thinks or works, a line that
+moves shows the stage, what the agent is doing and the time that has passed.
 Your answers are kept. After that, a request is all it takes.
 
 YAV Shell contains no model and no coding agent. It drives the agent programs you have installed
@@ -57,12 +60,12 @@ Both come from the vendors' documentation ([Codex CLI](https://learn.chatgpt.com
 shows what YAV needs and what it found. Priorities, in this order: correctness and security, then
 elapsed time, then usage.
 
-**Version 0.2.0. Not code-signed: Windows SmartScreen may stop a downloaded `yav.exe` the first time it
+**Version 0.2.1. Not code-signed: Windows SmartScreen may stop a downloaded `yav.exe` the first time it
 is started (step 2 says how to go on), and on a PC where Smart App Control is on, Windows does not
 start it at all. The Codex app-server interface it uses is labelled experimental by OpenAI.**
 YAV was tested with scripted agents. With real models it has made **two** runs of one small task, with
-versions 0.1.0 and 0.1.1; version 0.2.0, which changes how YAV is installed and how the first request
-is set up, has made none. Its installation by `yav.exe` was verified with the automated tests
+versions 0.1.0 and 0.1.1; versions 0.2.0, which changes how YAV is installed and how the first request
+is set up, and 0.2.1, which asks fewer questions and shows progress, have made none. The installation of 0.2.0 by `yav.exe` was verified with the automated tests
 (2637 of 2637 passed, on 2026-10-07) and the checks of the package, made with a `yav.exe` built on the
 development PC (29 of 29 where there is no .NET, no Git and no agent, and 37 of 37 on a new Windows, in
 Windows Sandbox); its guided first request only with the automated tests, against a scripted stand-in

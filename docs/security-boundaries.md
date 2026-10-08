@@ -1,7 +1,7 @@
 # Security boundaries
 
 This document states what YAV Shell protects, by which mechanism, and what it does **not** protect.
-It describes version 0.2.0. Where a boundary belongs to a provider's agent, YAV reports what that agent
+It describes version 0.2.1. Where a boundary belongs to a provider's agent, YAV reports what that agent
 says is in effect; it never invents a guarantee.
 
 ## Summary
@@ -10,7 +10,7 @@ says is in effect; it never invents a guarantee.
 | --- | --- | --- |
 | Your project is not written during a run | The agent works in an isolated worktree or protected copy outside the project | Not a security sandbox. A Git worktree shares the repository's metadata |
 | Only reviewed and tested content is applied | The candidate is frozen as content (manifest + SHA-256 + stored bytes); apply writes the stored bytes | Not a guarantee that reviewed code is free of defects |
-| A project you accepted for review only | You grant it for one project with a typed `yes`; it applies only while the project has no approved required check and its approved checks can be read, and a run says when it applies; see [Trust](#trust) | Weaker than checks: a pass then means that Model B reported no blocking finding. No check of yours ran |
+| A project without an approved required check runs on the review alone | The default since 0.2.1, decided by you on 2026-10-08; it applies only while the project has no approved required check and its approved checks can be read, a run says when it applies, and no command of the project runs without your `yes`; see [Trust](#trust) | Weaker than checks: a pass then means that Model B reported no blocking finding. No check of yours ran |
 | Model B cannot change the candidate | Read-only sandbox (Codex) or removal of every tool that writes or runs code (Claude); verified from what the agent reports; changes are detected by fingerprint and reverted | For Claude this is tool restriction, not an operating-system sandbox |
 | Model A's file access | The provider's own sandbox and approval policy | YAV adds no sandbox of its own. With Claude as Model A there is no operating-system sandbox |
 | Child processes do not outlive YAV's work | Windows Job Objects with kill-on-close; every child is in its job before it runs | Job Objects group processes. They do not restrict file or network access. **A program from the Microsoft Store that an agent or a check starts leaves the job**; see [Process handling](#process-handling) |
@@ -156,21 +156,25 @@ write. YAV does not set up, weaken or bypass Codex's sandbox.
   The file is always a protected path, so a candidate that changes it needs your explicit approval.
 * Repository content and tool output are passed to the models between `<reference-data>` delimiters.
   Text inside that looks like a delimiter is neutralized first.
-* **Review-only acceptance** is a weaker acceptance that you grant for one project. While required checks
-  are on, which is the default, a project without an approved required check does not run. When YAV found
-  no check it could propose, you declined what it proposed, or what you approved requires none, the shell
-  offers to accept for this project that a candidate is accepted on Model B's review alone; that takes a
-  typed `yes`, and it is not offered while the approved checks cannot be read. It applies only while
-  the project has no approved required check: approve one, and checks are required again (an optional
-  approved check does not set it aside, because a run does not run optional checks). When the approved
-  checks cannot be read - a damaged stored approval, or a `yav.project.json` that cannot be used - it does
-  not stand in for them: the run is blocked (`review-only-unknown`). A run in which it applies says so, and
-  its profile records that no check was required. A pass then means that Model B reported no blocking
-  finding, and nothing else: no check of yours ran. `/quality gates required` withdraws it for the selected
-  project; a candidate that was accepted on the review alone is then not applied by `/apply` either, when
-  the withdrawal came after its run started.
-* **The questions of a first request** ask for what the commands ask for - the models, an account route,
-  the checks of a project, the differences of a workspace, review-only acceptance - with the same typed
+* **Review-only acceptance** is a weaker acceptance, and since 0.2.1 the default for a project without an
+  approved required check: such a project runs right away, and a candidate is accepted on Model B's
+  review alone. You decided that on 2026-10-08. YAV detects checks and names them in one line, with how to
+  approve them (`/test detect`), but **never runs a command of the project that you did not approve with
+  a typed `yes`**. It applies only while the project has no approved required check: approve one, and
+  checks are required again (an optional approved check does not set it aside, because a run does not
+  run optional checks). When the approved checks cannot be read - a damaged stored approval, or a
+  `yav.project.json` that cannot be used - it does not stand in for them: the run is blocked
+  (`review-only-unknown`). A run in which it applies says so, and its profile records that no check was
+  required. A pass then means that Model B reported no blocking finding, and nothing else: no check of
+  yours ran. `/quality gates required` makes checks required for the selected project; a candidate that
+  was accepted on the review alone is then not applied by `/apply` either, when that came after its run
+  started.
+* **Account routes.** A route through a subscription the agent is signed in to (the ChatGPT plan of
+  Codex, a Claude subscription) is used without a typed `yes` since 0.2.1, as you decided on
+  2026-10-08. A route that bills an API key per token still needs one. Either way the route is shown,
+  and a run whose agent reports another kind of route than the one shown stops under every policy.
+* **The questions of a first request** ask for what the commands ask for - the models, an account route
+  that bills an API key, an exact effort, the differences of a workspace - with the same typed
   `yes` for every grant, and record the same answers. They are asked only where someone can answer:
   `yav run` and input from a pipe or a file are blocked as before.
 
@@ -305,5 +309,5 @@ YAV does not compare them by itself when it starts.
 * What Model A does inside its own sandbox and with the approvals you give it.
 * `/shell` and `/exec`: they run as you, with your rights, outside every agent sandbox. Changes a child
   shell makes to its directory or environment do not come back to YAV.
-* Telemetry: YAV sends none. The setting exists and is off; nothing in version 0.2.0 transmits data, and
+* Telemetry: YAV sends none. The setting exists and is off; nothing in version 0.2.1 transmits data, and
   installing or removing it sends nothing either.
