@@ -33,6 +33,61 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~ProcessRunnerTests'
     },
     @{
+        Name    = 'the row of progress of a run is never drawn'
+        File    = 'src\Yav.Console\Rendering\Screen.cs'
+        Find    = '        if (_status is { } status)'
+        Replace = '        if (_status is { } status && status.Segments.Count < 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Console.ScreenTests|FullyQualifiedName~Yav.Tests.Console.RunProgressTests'
+    },
+    @{
+        Name    = 'a row of progress that moves writes the input again'
+        File    = 'src\Yav.Console\Rendering\Screen.cs'
+        Find    = '            if (_statusDrawn)'
+        Replace = '            if (_statusDrawn && _caretRow < 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Console.ScreenTests'
+    },
+    @{
+        Name    = 'the row of progress stays when the run has finished'
+        File    = 'src\Yav.Console\Rendering\RunProgress.cs'
+        Find    = '        if (runEvent is RunFinished)'
+        Replace = '        if (runEvent is RunFinished && runEvent.RunId.Length < 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Console.RunProgressTests'
+    },
+    @{
+        Name    = 'a continued run shows no row of progress'
+        File    = 'src\Yav.Console\Shell\InteractiveShell.cs'
+        Find    = '        run.Progress = RunProgress.Start(_screen, _services.Clock);
+        run.Task = Task.Run(() => work('
+        Replace = '        run.Task = Task.Run(() => work('
+        Filter  = 'FullyQualifiedName~Yav.Tests.Console.ShellTests'
+    },
+    @{
+        Name    = 'the timer draws the row of progress while the user types or answers'
+        File    = 'src\Yav.Console\Rendering\RunProgress.cs'
+        Find    = '        if (!_screen.StatusHeld)'
+        Replace = '        if (!_screen.StatusHeld || _frame >= 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Console.RunProgressTests'
+    },
+    @{
+        Name    = 'the row of progress is drawn again below the result of a run'
+        File    = 'src\Yav.Console\Shell\InteractiveShell.cs'
+        Find    = '                run.TaskId = started.TaskId;
+            }
+
+            Observe(run, runEvent);
+
+            // The row goes before the result of a run is written, so the result is never written above it.
+            if (runEvent is RunFinished)'
+        Replace = '                run.TaskId = started.TaskId;
+            }
+
+            Observe(run, runEvent);
+
+            // The row goes before the result of a run is written, so the result is never written above it.
+            if (runEvent is RunFinished && runEvent.RunId.Length < 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Console.ShellTests'
+    },
+    @{
         Name    = 'the program of an installation made with no-register offers to install itself'
         File    = 'src\Yav.Console\Install\InstallOffer.cs'
         Find    = '        if (situation.FromInstallation)'

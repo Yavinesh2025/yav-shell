@@ -37,12 +37,18 @@ public sealed class Screen
     private readonly Lock _gate = new();
     private readonly List<string> _deferred = [];
     private int _suspended;
+    private int _statusHolds;
     private InputView? _input;
+    private Line? _status;
     private Action? _onNextWrite;
 
     // Rows the input occupies on the screen right now, and the row of those the cursor is in.
     private int _inputRows;
     private int _caretRow;
+    private int _caretColumn;
+
+    // Whether the status is on the screen now, as the first of the rows of the input.
+    private bool _statusDrawn;
 
     public Screen(ITerminal terminal, ScreenOptions options)
     {
@@ -119,6 +125,107 @@ public sealed class Screen
 
             var builder = new StringBuilder();
             AppendErase(builder);
+            AppendInput(builder);
+            Send(builder);
+        }
+    }
+
+    /// <summary>
+    /// Shows one row of status above the input, and replaces the one shown before in place, so that it never
+    /// adds to the scrollback. A terminal that cannot position the cursor gets nothing: its output stays as it is.
+    /// </summary>
+    public void ShowStatus(Line status)
+    {
+        lock (_gate)
+        {
+            if (!Options.Rich)
+            {
+                return;
+            }
+
+            _status = status;
+            if (_suspended > 0)
+            {
+                return;
+            }
+
+            var builder = new StringBuilder();
+            if (_statusDrawn)
+            {
+                // Only its own row is written again: the input below it stays as it is, and so does the caret.
+                builder.Append('\r');
+                if (_caretRow > 0)
+                {
+                    builder.Append(Csi).Append(_caretRow.ToString(CultureInfo.InvariantCulture)).Append('A');
+                }
+
+                AppendStatus(builder, status);
+                builder.Append(Csi).Append('K').Append('\r');
+                if (_caretRow > 0)
+                {
+                    builder.Append(Csi).Append(_caretRow.ToString(CultureInfo.InvariantCulture)).Append('B');
+                }
+
+                if (_caretColumn > 0)
+                {
+                    builder.Append(Csi).Append(_caretColumn.ToString(CultureInfo.InvariantCulture)).Append('C');
+                }
+
+                Send(builder);
+                return;
+            }
+
+            AppendErase(builder);
+            AppendInput(builder);
+            Send(builder);
+        }
+    }
+
+    /// <summary>
+    /// True while the user types a draft or answers a question: then a row of status is drawn again only when
+    /// something happened, never by a timer, so that no write of the screen comes between keys that are read.
+    /// </summary>
+    public bool StatusHeld
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _statusHolds > 0 || _input is { Text.Length: > 0 };
+            }
+        }
+    }
+
+    /// <summary>Holds a timer's drawing of the row of status back until the scope ends; see <see cref="StatusHeld"/>.</summary>
+    public IDisposable HoldStatus()
+    {
+        lock (_gate)
+        {
+            _statusHolds++;
+        }
+
+        return new StatusHold(this);
+    }
+
+    /// <summary>Removes the row of status, if one is shown, and leaves the input where it is.</summary>
+    public void HideStatus()
+    {
+        lock (_gate)
+        {
+            if (_status is null)
+            {
+                return;
+            }
+
+            _status = null;
+            if (_suspended > 0 || _inputRows == 0)
+            {
+                return;
+            }
+
+            var builder = new StringBuilder();
+            AppendErase(builder);
+            AppendInput(builder);
             Send(builder);
         }
     }
@@ -288,13 +395,39 @@ public sealed class Screen
         builder.Append(Csi).Append('J');
         _inputRows = 0;
         _caretRow = 0;
+        _caretColumn = 0;
+        _statusDrawn = false;
     }
 
     private readonly record struct Cell(string Text, int Width, Tone Tone, bool Bold);
 
     private void AppendInput(StringBuilder builder)
     {
-        if (_input is not { } view || !Options.Rich)
+        if (!Options.Rich)
+        {
+            return;
+        }
+
+        // The status is one row, cut at the edge, so that the rows to erase are known.
+        var statusRows = 0;
+        if (_status is { } status)
+        {
+            AppendStatus(builder, status);
+            statusRows = 1;
+            _statusDrawn = true;
+            if (_input is null)
+            {
+                builder.Append('\r');
+                _inputRows = 1;
+                _caretRow = 0;
+                _caretColumn = 0;
+                return;
+            }
+
+            builder.Append(NewLine);
+        }
+
+        if (_input is not { } view)
         {
             return;
         }
@@ -388,8 +521,17 @@ public sealed class Screen
             builder.Append(Csi).Append(caretColumn.ToString(CultureInfo.InvariantCulture)).Append('C');
         }
 
-        _inputRows = row + 1;
-        _caretRow = caretRow;
+        _inputRows = statusRows + row + 1;
+        _caretRow = statusRows + caretRow;
+        _caretColumn = caretColumn;
+    }
+
+    private void AppendStatus(StringBuilder builder, Line status)
+    {
+        foreach (var segment in status.Rows(Width - 1)[0].Segments)
+        {
+            AppendStyled(builder, segment.Text, segment.Tone, segment.Bold);
+        }
     }
 
     private static void AddCells(List<Cell> cells, string text, Tone tone, bool bold)
@@ -399,6 +541,22 @@ public sealed class Screen
         {
             var element = elements.GetTextElement();
             cells.Add(new Cell(element, Math.Max(1, UnicodeWidth.GetWidth(element)), tone, bold));
+        }
+    }
+
+    private sealed class StatusHold(Screen screen) : IDisposable
+    {
+        private int _released;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                lock (screen._gate)
+                {
+                    screen._statusHolds--;
+                }
+            }
         }
     }
 
