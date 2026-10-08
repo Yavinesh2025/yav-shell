@@ -38,6 +38,7 @@ public sealed class Screen
     private readonly List<string> _deferred = [];
     private int _suspended;
     private InputView? _input;
+    private Line? _status;
     private Action? _onNextWrite;
 
     // Rows the input occupies on the screen right now, and the row of those the cursor is in.
@@ -119,6 +120,56 @@ public sealed class Screen
 
             var builder = new StringBuilder();
             AppendErase(builder);
+            AppendInput(builder);
+            Send(builder);
+        }
+    }
+
+    /// <summary>
+    /// Shows one row of status above the input, and replaces the one shown before in place, so that it never
+    /// adds to the scrollback. A terminal that cannot position the cursor gets nothing: its output stays as it is.
+    /// </summary>
+    public void ShowStatus(Line status)
+    {
+        lock (_gate)
+        {
+            if (!Options.Rich)
+            {
+                return;
+            }
+
+            _status = status;
+            if (_suspended > 0)
+            {
+                return;
+            }
+
+            var builder = new StringBuilder();
+            AppendErase(builder);
+            AppendInput(builder);
+            Send(builder);
+        }
+    }
+
+    /// <summary>Removes the row of status, if one is shown, and leaves the input where it is.</summary>
+    public void HideStatus()
+    {
+        lock (_gate)
+        {
+            if (_status is null)
+            {
+                return;
+            }
+
+            _status = null;
+            if (_suspended > 0 || _inputRows == 0)
+            {
+                return;
+            }
+
+            var builder = new StringBuilder();
+            AppendErase(builder);
+            AppendInput(builder);
             Send(builder);
         }
     }
@@ -294,7 +345,34 @@ public sealed class Screen
 
     private void AppendInput(StringBuilder builder)
     {
-        if (_input is not { } view || !Options.Rich)
+        if (!Options.Rich)
+        {
+            return;
+        }
+
+        // The status is one row, cut at the edge, so that the rows to erase are known.
+        var statusRows = 0;
+        if (_status is { } status)
+        {
+            var first = status.Rows(Width - 1)[0];
+            foreach (var segment in first.Segments)
+            {
+                AppendStyled(builder, segment.Text, segment.Tone, segment.Bold);
+            }
+
+            statusRows = 1;
+            if (_input is null)
+            {
+                builder.Append('\r');
+                _inputRows = 1;
+                _caretRow = 0;
+                return;
+            }
+
+            builder.Append(NewLine);
+        }
+
+        if (_input is not { } view)
         {
             return;
         }
@@ -388,8 +466,8 @@ public sealed class Screen
             builder.Append(Csi).Append(caretColumn.ToString(CultureInfo.InvariantCulture)).Append('C');
         }
 
-        _inputRows = row + 1;
-        _caretRow = caretRow;
+        _inputRows = statusRows + row + 1;
+        _caretRow = statusRows + caretRow;
     }
 
     private static void AddCells(List<Cell> cells, string text, Tone tone, bool bold)

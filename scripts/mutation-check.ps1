@@ -33,6 +33,20 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~ProcessRunnerTests'
     },
     @{
+        Name    = 'the row of progress of a run is never drawn'
+        File    = 'src\Yav.Console\Rendering\Screen.cs'
+        Find    = '        if (_status is { } status)'
+        Replace = '        if (_status is { } status && status.Segments.Count < 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Console.ScreenTests|FullyQualifiedName~Yav.Tests.Console.RunProgressTests'
+    },
+    @{
+        Name    = 'the row of progress stays when the run has finished'
+        File    = 'src\Yav.Console\Rendering\RunProgress.cs'
+        Find    = '        if (runEvent is RunFinished)'
+        Replace = '        if (runEvent is RunFinished && runEvent.RunId.Length < 0)'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Console.RunProgressTests'
+    },
+    @{
         Name    = 'the program of an installation made with no-register offers to install itself'
         File    = 'src\Yav.Console\Install\InstallOffer.cs'
         Find    = '        if (situation.FromInstallation)'

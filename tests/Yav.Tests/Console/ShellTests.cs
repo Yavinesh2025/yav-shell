@@ -180,6 +180,47 @@ public class ShellTests
     }
 
     [Fact]
+    public async Task While_an_agent_works_one_row_above_the_prompt_moves_and_says_what_happens_and_it_goes_with_the_run()
+    {
+        await using var shell = new ShellHarness();
+        shell.TrustGates(CoordinatorHarness.NoTextGate("tests", "src/app.txt", "bug"));
+        shell.Agents
+            .ImplementerTurn(Step.Sleep(2_500), Step.Write("src/app.txt", "fixed\n"), Step.Message("Done."))
+            .ReviewerTurn(Step.Review("pass"));
+        shell.Start();
+        await shell.WaitForPromptAsync();
+
+        shell.Enter(Task);
+        await shell.WaitUntilAsync(
+            () => shell.Terminal.Lines is [.., var status, _] && status.Contains("Model A is working ·", StringComparison.Ordinal),
+            "the row of progress of Model A above the prompt");
+        var first = shell.Terminal.Lines[^2];
+        await shell.WaitUntilAsync(() => shell.Terminal.Lines[^2] != first, "the row of progress moving");
+
+        // The row is replaced in place: it never adds to what scrolls.
+        Assert.Single(shell.Terminal.Lines, row => row.Contains("Model A is working ·", StringComparison.Ordinal));
+        Assert.Equal(shell.Prompt.TrimEnd(), shell.Terminal.Lines[^1]);
+
+        await shell.WaitForRunToEndAsync();
+        Assert.DoesNotContain(shell.Terminal.Lines, row => row.Contains("is working ·", StringComparison.Ordinal));
+        Assert.DoesNotContain(shell.Terminal.Lines, row => row.Contains("is reviewing ·", StringComparison.Ordinal));
+        Assert.Equal(shell.Prompt.TrimEnd(), shell.Terminal.Lines[^1]);
+    }
+
+    [Fact]
+    public async Task A_console_that_reads_lines_gets_no_row_of_progress()
+    {
+        var lines = new ScriptedLines();
+        await using var shell = new ShellHarness(new ShellOptions { Lines = lines }).WithPassingRun();
+        shell.Start();
+        lines.Send(Task);
+        await shell.WaitForAsync("[READY]");
+
+        Assert.DoesNotContain("is working", shell.Terminal.Raw, StringComparison.Ordinal);
+        Assert.DoesNotContain("starting ·", shell.Terminal.Raw, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Stop_interrupts_the_run_and_says_how_to_continue()
     {
         await using var shell = new ShellHarness();

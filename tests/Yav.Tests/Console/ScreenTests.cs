@@ -351,4 +351,50 @@ public class ScreenTests
         Assert.Equal("YAV C:\\p> typing", lines[^1]);
         Assert.All(lines.Take(200), line => Assert.Matches(@"^writer (\d) line \d\d ([a-h])\2{19}$", line));
     }
+
+    [Fact]
+    public void The_status_is_replaced_in_place_above_the_input_and_output_goes_above_it()
+    {
+        var (screen, terminal) = Rich(width: 40);
+        screen.ShowInput(new InputView(Prompt, "typing", 6));
+
+        screen.ShowStatus(Line.Of("working 1"));
+        screen.ShowStatus(Line.Of("working 2"));
+        Assert.Equal(["working 2", "YAV C:\\p> typing"], terminal.Lines);
+
+        screen.WriteLine(Line.Of("[CODE A]  output"));
+        Assert.Equal(["[CODE A]  output", "working 2", "YAV C:\\p> typing"], terminal.Lines);
+
+        screen.HideStatus();
+        Assert.Equal(["[CODE A]  output", "YAV C:\\p> typing"], terminal.Lines);
+        Assert.Equal(1, terminal.CursorRow);
+    }
+
+    [Fact]
+    public void A_status_wider_than_the_window_is_cut_to_one_row()
+    {
+        var (screen, terminal) = Rich(width: 20);
+
+        screen.ShowStatus(Line.Of("one two three four five six seven"));
+        screen.WriteLine(Line.Of("after"));
+
+        Assert.Equal(2, terminal.Lines.Count);
+        Assert.Equal("after", terminal.Lines[0]);
+        Assert.StartsWith("one two", terminal.Lines[1], StringComparison.Ordinal);
+        Assert.Empty(terminal.RowsTheTerminalBegan);
+    }
+
+    [Fact]
+    public void A_status_is_held_back_while_another_editor_owns_the_cursor()
+    {
+        var (screen, terminal) = Rich(width: 40);
+
+        using (screen.Suspend())
+        {
+            screen.ShowStatus(Line.Of("working"));
+            Assert.Empty(terminal.Lines);
+        }
+
+        Assert.Equal(["working"], terminal.Lines);
+    }
 }

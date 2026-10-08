@@ -37,12 +37,24 @@ public sealed class ActiveRun
 
     public required DateTimeOffset StartedAt { get; init; }
 
+    /// <summary>The row that shows the run still works, in a terminal that can show one. Removed when the run ends.</summary>
+    public RunProgress? Progress { get; set; }
+
     public Task<RunOutcome> Task
     {
         get => _task;
         set
         {
             _task = value;
+            if (Progress is { } progress)
+            {
+                _ = value.ContinueWith(
+                    static (_, shown) => ((RunProgress)shown!).Dispose(),
+                    progress,
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
 
             // One continuation for the whole run, however many lines are read while it is active.
             _ = value.ContinueWith(
@@ -796,6 +808,7 @@ public sealed partial class InteractiveShell
 
             Observe(run, runEvent);
             _screen.WriteLines(formatter.Format(runEvent));
+            run.Progress?.Observe(runEvent);
         });
 
         var request = new RunRequest(project, sent.Text)
@@ -810,6 +823,7 @@ public sealed partial class InteractiveShell
         };
         _session.QueuePaused = false;
         _session.Active = run;
+        run.Progress = RunProgress.Start(_screen, _services.Clock);
 
         var configuration = _services.Configuration;
         run.Task = Task.Run(() => Coordinator.RunAsync(request, configuration, observer, _input.Approvals, stop.Token), CancellationToken.None);
@@ -825,9 +839,11 @@ public sealed partial class InteractiveShell
         {
             Observe(run, runEvent);
             _screen.WriteLines(formatter.Format(runEvent));
+            run.Progress?.Observe(runEvent);
         });
         _session.QueuePaused = false;
         _session.Active = run;
+        run.Progress = RunProgress.Start(_screen, _services.Clock);
         run.Task = Task.Run(() => work(observer, _input.Approvals, stop.Token), CancellationToken.None);
     }
 
@@ -863,6 +879,7 @@ public sealed partial class InteractiveShell
         finally
         {
             run.Release();
+            run.Progress?.Dispose();
         }
 
         if (outcome.RunId.Length > 0 && _services.Database.FindRun(outcome.RunId) is not null)
