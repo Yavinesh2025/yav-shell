@@ -93,6 +93,12 @@ public sealed record AuthStatus(
 {
     /// <summary>Stable key used to record a user's acknowledgement of this exact route.</summary>
     public string RouteKey(string adapterId) => $"{adapterId}:{Route}:{Backend ?? "default"}";
+
+    /// <summary>
+    /// A subscription the agent itself is signed in to, as the agent reported it: used without asking. A route that is
+    /// unknown, billed per token or by a cloud provider is not one, and keeps needing the user's typed yes.
+    /// </summary>
+    public bool UsedWithoutAsking => Authenticated && Route == AccountRouteKind.Subscription && Billing == BillingKind.IncludedInSubscription;
 }
 
 /// <summary>A model offered by the provider for the current account, with its provider-specific effort values.</summary>

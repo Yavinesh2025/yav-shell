@@ -89,7 +89,7 @@ public sealed class AdapterCatalog
             reading.Auth,
             reading.Models,
             adapter.Capabilities,
-            RouteAcknowledged: routeKey is not null && _trust.IsRouteAcknowledged(routeKey),
+            RouteAcknowledged: routeKey is not null && (reading.Auth!.UsedWithoutAsking || _trust.IsRouteAcknowledged(routeKey)),
             PaidSpeedAuthorized: routeKey is not null && _trust.IsPaidSpeedAuthorized(routeKey));
     }
 

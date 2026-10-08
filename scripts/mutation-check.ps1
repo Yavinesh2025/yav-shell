@@ -635,6 +635,34 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~The_implementer_edits_freely_and_asks_the_user_for_everything_else'
     },
     @{
+        Name    = 'a route that is not a subscription is used without asking'
+        File    = 'src\Yav.Core\Agents\AgentContracts.cs'
+        Find    = 'Authenticated && Route == AccountRouteKind.Subscription && Billing == BillingKind.IncludedInSubscription'
+        Replace = 'Authenticated && Route != AccountRouteKind.ApiKey'
+        Filter  = 'FullyQualifiedName~Yav.Tests.Core.AccountRouteTests'
+    },
+    @{
+        Name    = 'a subscription blocks a run until it was acknowledged'
+        File    = 'src\Yav.Coordinator\AdapterCatalog.cs'
+        Find    = '(reading.Auth!.UsedWithoutAsking || _trust.IsRouteAcknowledged(routeKey))'
+        Replace = '(_trust.IsRouteAcknowledged(routeKey))'
+        Filter  = 'FullyQualifiedName~ShellModelCommandTests.A_subscription_the_agent_is_signed_in_to_is_used_without_asking_and_without_a_record'
+    },
+    @{
+        Name    = 'first run: a subscription is asked about'
+        File    = 'src\Yav.Console\Shell\Commands.Setup.cs'
+        Find    = "                || auth.UsedWithoutAsking`r`n"
+        Replace = "`r`n"
+        Filter  = 'FullyQualifiedName~ShellSetupTests.A_first_request_asks_for_both_models_only_and_is_then_sent_through_the_subscriptions_without_asking'
+    },
+    @{
+        Name    = 'login asks about a subscription'
+        File    = 'src\Yav.Console\Shell\Commands.Models.cs'
+        Find    = 'var acknowledged = auth.UsedWithoutAsking || _services.Database'
+        Replace = 'var acknowledged = _services.Database'
+        Filter  = 'FullyQualifiedName~ShellModelCommandTests.A_subscription_the_agent_is_signed_in_to_is_used_without_asking_and_without_a_record'
+    },
+    @{
         Name    = 'a stale review is accepted'
         File    = 'src\Yav.Core\Runs\AcceptanceGate.cs'
         Find    = 'if (!review.Binding.Matches(expected, out var difference))'

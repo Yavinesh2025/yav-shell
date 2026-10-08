@@ -524,7 +524,9 @@ public class CliCommandTests
     [Fact]
     public async Task Doctor_ends_with_a_problem_when_a_run_could_not_start()
     {
+        // A route billed per token: a subscription the agent is signed in to would need no acknowledgement.
         await using var shell = new ShellHarness(new ShellOptions { AcknowledgeRoutes = false }).WithPassingRun();
+        shell.Agents.Codex(c => c["account"] = new System.Text.Json.Nodes.JsonObject { ["type"] = "apiKey" });
 
         var ran = await DoctorAsync(shell, json: false);
 

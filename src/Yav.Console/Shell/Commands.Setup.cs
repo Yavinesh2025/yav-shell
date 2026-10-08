@@ -662,6 +662,7 @@ public sealed partial class InteractiveShell
 
             var snapshot = await SnapshotAsync(adapter.Id, false, cancellationToken).ConfigureAwait(false);
             if (snapshot?.Auth is not { Authenticated: true, Policy: RoutePolicy.RequiresAcknowledgement } auth
+                || auth.UsedWithoutAsking
                 || _services.Database.IsRouteAcknowledged(auth.RouteKey(adapter.Id)))
             {
                 continue;

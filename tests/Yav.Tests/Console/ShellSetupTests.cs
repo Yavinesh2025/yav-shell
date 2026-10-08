@@ -24,7 +24,7 @@ public class ShellSetupTests
     private const string ModelBQuestion = "Model B - type its number, then Enter:";
     private const string EffortAQuestion = "Effort for Model A - type one of the listed values, then Enter:";
     private const string ProjectQuestion = "Project folder - type or paste its path, then Enter:";
-    private const string CodexRoute = "Use 'ChatGPT plan (pro)' for runs of YAV, billed as stated above? Type yes to confirm:";
+    private const string CodexRoute = "Use 'OpenAI API key' for runs of YAV, billed as stated above? Type yes to confirm:";
     private const string ReviewOnly = "Accept candidates of this project on the review alone? Type yes to confirm:";
 
     private static async Task<ShellHarness> StartedAsync(ShellOptions? options = null, Action<ShellHarness>? arrange = null)
@@ -42,11 +42,18 @@ public class ShellSetupTests
         .ImplementerTurn(Step.Write("src/app.txt", "fixed\n"), Step.Message("Changed app.txt to say fixed."))
         .ReviewerTurn(Step.Review("pass"));
 
+    /// <summary>A passing run whose Codex works with an API key: a route that is billed per token and needs a typed yes.</summary>
+    private static void ApiKeyRoute(ShellHarness shell)
+    {
+        shell.WithPassingRun();
+        shell.Agents.Codex(c => c["account"] = new JsonObject { ["type"] = "apiKey" });
+    }
+
     private static string ConfigurationWithOneCheck(ShellHarness shell) =>
         shell.Services.Validation.Serialize(ProjectConfiguration.Empty with { Gates = [CoordinatorHarness.NoTextGate("tests", "src/app.txt", "bug")] });
 
     [Fact]
-    public async Task A_first_request_asks_for_both_models_and_the_account_routes_and_is_then_sent()
+    public async Task A_first_request_asks_for_both_models_only_and_is_then_sent_through_the_subscriptions_without_asking()
     {
         await using var shell = await StartedAsync(new ShellOptions { ChooseModels = false, AcknowledgeRoutes = false }, s =>
         {
@@ -65,8 +72,6 @@ public class ShellSetupTests
             "3 opus low, medium, high, xhigh, max",
             "YAV lists what the agents report. It does not rank the models and does not choose for you.");
         await shell.AnswerWhenAskedAsync(ModelBQuestion, "3");
-        await shell.AnswerWhenAskedAsync(CodexRoute, "yes");
-        await shell.AnswerWhenAskedAsync("Use '", "yes", occurrence: 2);
         await shell.WaitForRunToEndAsync();
 
         shell.AssertShows(
@@ -76,9 +81,10 @@ public class ShellSetupTests
             "[READY]");
         Assert.Equal(new RoleSelection(CodexAppServerAdapter.AdapterId, "model-a"), Stored(shell).ModelA);
         Assert.Equal(new RoleSelection(ClaudeCliAdapter.AdapterId, "opus"), Stored(shell).ModelB);
-        Assert.True(shell.Services.Database.IsRouteAcknowledged($"{CodexAppServerAdapter.AdapterId}:Subscription:openai"));
-        Assert.True(shell.Services.Database.IsRouteAcknowledged($"{CodexExecAdapter.AdapterId}:Subscription:openai"));
-        Assert.True(shell.Services.Database.IsRouteAcknowledged($"{ClaudeCliAdapter.AdapterId}:Subscription:firstParty"));
+        // A subscription the agent is signed in to is used without a question and without a record of a yes.
+        shell.AssertDoesNotShow("for runs of YAV, billed as stated above?", "Whether it may be used for runs of YAV is your decision");
+        Assert.False(shell.Services.Database.IsRouteAcknowledged($"{CodexAppServerAdapter.AdapterId}:Subscription:openai"));
+        Assert.False(shell.Services.Database.IsRouteAcknowledged($"{ClaudeCliAdapter.AdapterId}:Subscription:firstParty"));
         Assert.Single(shell.Agents.CodexRequests("turn/start"));
 
         // Ready is not applied: the project is written by /apply and by nothing else.
@@ -185,7 +191,7 @@ public class ShellSetupTests
     [Fact]
     public async Task An_account_route_is_acknowledged_only_by_a_typed_yes()
     {
-        await using var shell = await StartedAsync(new ShellOptions { AcknowledgeRoutes = false }, s => s.WithPassingRun());
+        await using var shell = await StartedAsync(new ShellOptions { AcknowledgeRoutes = false }, ApiKeyRoute);
 
         shell.Enter(Task);
         await shell.AnswerWhenAskedAsync(CodexRoute, "y");
@@ -193,11 +199,11 @@ public class ShellSetupTests
 
         shell.AssertShows(
             "Model A works through Codex (app server), with this account. Whether it may be used for runs of YAV is your decision:",
-            "Account route: ChatGPT plan (pro)",
+            "Account route: OpenAI API key",
             "Not confirmed. Nothing was changed.",
             "/login codex shows the route and asks again.",
             "The request was not sent.");
-        Assert.False(shell.Services.Database.IsRouteAcknowledged($"{CodexAppServerAdapter.AdapterId}:Subscription:openai"));
+        Assert.False(shell.Services.Database.IsRouteAcknowledged($"{CodexAppServerAdapter.AdapterId}:ApiKey:openai"));
         Assert.Empty(shell.Agents.CodexRequests("thread/start"));
 
         shell.Enter(Task);
@@ -205,7 +211,7 @@ public class ShellSetupTests
         await shell.WaitForRunToEndAsync();
 
         shell.AssertShows("Acknowledged. It is asked again when the account route changes.", "[READY]");
-        Assert.True(shell.Services.Database.IsRouteAcknowledged($"{CodexAppServerAdapter.AdapterId}:Subscription:openai"));
+        Assert.True(shell.Services.Database.IsRouteAcknowledged($"{CodexAppServerAdapter.AdapterId}:ApiKey:openai"));
     }
 
     [Fact]
@@ -340,7 +346,7 @@ public class ShellSetupTests
     {
         await using var shell = await StartedAsync(
             new ShellOptions { AcknowledgeRoutes = false, Files = [("src/app.txt", "one\n"), ("docs/spec notes.md", "The app says fixed.\n")] },
-            s => s.WithPassingRun());
+            ApiKeyRoute);
         await shell.EnterAndWaitAsync("/attach docs/spec notes.md");
 
         shell.Enter(Task);

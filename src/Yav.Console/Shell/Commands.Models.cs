@@ -592,7 +592,7 @@ public sealed partial class InteractiveShell
     /// </summary>
     private bool ShowRoute(IAgentAdapter adapter, AuthStatus auth)
     {
-        var acknowledged = _services.Database.IsRouteAcknowledged(auth.RouteKey(adapter.Id));
+        var acknowledged = auth.UsedWithoutAsking || _services.Database.IsRouteAcknowledged(auth.RouteKey(adapter.Id));
         _ui.Pairs(
         [
             ("Account route", auth.RouteLabel, Tone.Normal),
@@ -602,6 +602,7 @@ public sealed partial class InteractiveShell
             {
                 RoutePolicy.Allowed => "documented by the provider",
                 RoutePolicy.NotPermitted => "not permitted by the provider",
+                _ when auth.UsedWithoutAsking => "your subscription, used without asking",
                 _ => acknowledged ? "acknowledged by you" : "needs your acknowledgement",
             }, auth.Policy == RoutePolicy.NotPermitted ? Tone.Error : acknowledged || auth.Policy == RoutePolicy.Allowed ? Tone.Success : Tone.Warning),
         ]);

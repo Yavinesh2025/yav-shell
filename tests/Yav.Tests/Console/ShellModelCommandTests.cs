@@ -420,20 +420,42 @@ public class ShellModelCommandTests
         shell.AssertShows(
             "Account route: ChatGPT plan (pro)",
             "Billing: included in the subscription",
-            "For this integration: acknowledged by you",
+            "For this integration: your subscription, used without asking",
             "  │ Usage counts against the limits of your ChatGPT plan.",
             "YAV never sees a password or a token.");
     }
 
     [Fact]
-    public async Task A_route_that_was_not_acknowledged_runs_nothing_until_the_user_acknowledged_it()
+    public async Task A_subscription_the_agent_is_signed_in_to_is_used_without_asking_and_without_a_record()
     {
         await using var shell = await StartedAsync(new ShellOptions { AcknowledgeRoutes = false }, s => s.WithPassingRun());
 
         shell.Enter(Task);
+        await shell.WaitForRunToEndAsync();
+
+        shell.AssertShows("[READY]");
+        shell.AssertDoesNotShow("for runs of YAV, billed as stated above?", "route-unacknowledged");
+        Assert.False(shell.Services.Database.IsRouteAcknowledged($"{CodexAppServerAdapter.AdapterId}:Subscription:openai"));
+
+        // /login still shows the route, and asks nothing about it.
+        await shell.EnterAndWaitAsync("/login codex");
+        shell.AssertShows("Account route: ChatGPT plan (pro)", "For this integration: your subscription, used without asking");
+        shell.AssertDoesNotShow("for runs of YAV, billed as stated above?");
+    }
+
+    [Fact]
+    public async Task A_route_that_was_not_acknowledged_runs_nothing_until_the_user_acknowledged_it()
+    {
+        await using var shell = await StartedAsync(new ShellOptions { AcknowledgeRoutes = false }, s =>
+        {
+            s.WithPassingRun();
+            s.Agents.Codex(c => c["account"] = new JsonObject { ["type"] = "apiKey" });
+        });
+
+        shell.Enter(Task);
 
         // The route is shown and asked about at once. An empty answer acknowledges nothing.
-        await shell.AnswerWhenAskedAsync("Use 'ChatGPT plan (pro)' for runs of YAV, billed as stated above?", string.Empty);
+        await shell.AnswerWhenAskedAsync("Use 'OpenAI API key' for runs of YAV, billed as stated above?", string.Empty);
         await shell.WaitForRunToEndAsync();
 
         shell.AssertShows("[BLOCKED]", "route-unacknowledged: Review and acknowledge it with /login openai.", "Not confirmed. Nothing was changed.");
@@ -442,7 +464,7 @@ public class ShellModelCommandTests
         // Only what /login itself shows counts here: the refusal above showed the same route a moment ago.
         var before = shell.Terminal.Lines.Count;
         shell.Enter("/login openai");
-        await shell.WaitForAskingAsync("Use 'ChatGPT plan (pro)' for runs of YAV, billed as stated above?", occurrence: 2);
+        await shell.WaitForAskingAsync("Use 'OpenAI API key' for runs of YAV, billed as stated above?", occurrence: 2);
         Assert.Contains("For this integration: needs your acknowledgement", ShellHarness.Flatten(string.Join(" ", shell.Terminal.Lines.Skip(before))), StringComparison.Ordinal);
         await shell.EnterAndWaitAsync("yes");
 

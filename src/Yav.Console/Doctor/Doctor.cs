@@ -282,6 +282,9 @@ public static class DoctorChecks
             case RoutePolicy.RequiresAcknowledgement when !snapshot.RouteAcknowledged:
                 checks.Add(new DoctorCheck(area, "Route", CheckStatus.Warning, "Not acknowledged yet. " + auth.PolicyNote, $"Run /login {ProviderWord(adapter)} --acknowledge."));
                 break;
+            case RoutePolicy.RequiresAcknowledgement when auth.UsedWithoutAsking:
+                checks.Add(new DoctorCheck(area, "Route", CheckStatus.Ok, "The subscription the agent is signed in to; used without asking."));
+                break;
             case RoutePolicy.RequiresAcknowledgement:
                 checks.Add(new DoctorCheck(area, "Route", CheckStatus.Ok, "Acknowledged by you."));
                 break;

@@ -91,6 +91,7 @@ public class ShellDriverTests
     public async Task The_confirmation_that_was_expected_gets_the_answer_it_was_given()
     {
         using var yav = new YavProcess(acknowledgeRoutes: false);
+        yav.Agents.Codex(c => c["account"] = new JsonObject { ["type"] = "apiKey" });
         using var driver = Start(yav);
         await driver.WaitForPromptAsync();
 
@@ -98,7 +99,7 @@ public class ShellDriverTests
 
         Assert.Contains("Acknowledged. It is asked again when the account route changes.", driver.Transcript.ToString(), StringComparison.Ordinal);
         await driver.ExitAsync();
-        Assert.True(Stored(yav, database => database.IsRouteAcknowledged($"{CodexAppServerAdapter.AdapterId}:Subscription:openai")));
+        Assert.True(Stored(yav, database => database.IsRouteAcknowledged($"{CodexAppServerAdapter.AdapterId}:ApiKey:openai")));
     }
 
     [Fact]

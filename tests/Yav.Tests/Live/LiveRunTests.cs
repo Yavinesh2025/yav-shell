@@ -389,6 +389,10 @@ public partial class LiveRunTests(ITestOutputHelper output)
     [GeneratedRegex(@"Use '(?<route>[^\r\n]+?)' (?<rest>[^\r\n]*)")]
     private static partial Regex RouteAsked();
 
+    // The row on which /login shows the route of an agent (ShowRoute in Shell\Commands.Models.cs).
+    [GeneratedRegex(@"Account route: (?<route>[^\r\n]+)")]
+    private static partial Regex ShownRoute();
+
     /// <summary>The route the newest question of /login in the transcript named, when it was answered with no.</summary>
     private static string? DeclinedRoute(string transcript)
     {
@@ -400,11 +404,27 @@ public partial class LiveRunTests(ITestOutputHelper output)
     /// Acknowledges the account route of a provider with /login. Yes is typed only when the question names a route of the
     /// kind the holder agreed to. Any other question gets no, and the setup stops, naming the route that was found.
     /// </summary>
-    private static async Task AcknowledgeAsync(ShellDriver driver, LiveRoute route)
+    private static async Task<string?> AcknowledgeAsync(ShellDriver driver, LiveRoute route)
     {
+        var before = driver.Transcript.Length;
         try
         {
+            if (route.Kind == "subscription")
+            {
+                // A subscription the agent is signed in to is used without asking, so /login asks nothing about it. Any
+                // question it asks all the same is answered with no.
+                await driver.EnterAsync("/login " + route.Provider);
+                var shown = driver.Transcript.ToString(before, driver.Transcript.Length - before);
+                var label = ShownRoute().Matches(shown).Select(m => m.Groups["route"].Value.Trim())
+                    .FirstOrDefault(found => LiveRoute.KindOf(route.Provider, found) == "subscription");
+                Assert.True(
+                    label is not null && shown.Contains("your subscription, used without asking", StringComparison.Ordinal),
+                    $"/login {route.Provider} showed no subscription that is used without asking, and you agreed to the {route.Kind} of {route.Provider}. The setup stops.\n{shown}");
+                return label;
+            }
+
             await driver.EnterAsync("/login " + route.Provider, new ExpectedQuestion(route.Question, "yes"));
+            return null;
         }
         catch (XunitException ex) when (DeclinedRoute(driver.Transcript.ToString()) is { } found)
         {
@@ -448,6 +468,7 @@ public partial class LiveRunTests(ITestOutputHelper output)
         await CreateProjectAsync(part.Project, task);
 
         using var driver = Start(part);
+        var usedWithoutAsking = new Dictionary<string, string>(StringComparer.Ordinal);
         var completed = false;
         try
         {
@@ -459,7 +480,10 @@ public partial class LiveRunTests(ITestOutputHelper output)
             foreach (var route in routes)
             {
                 // Anything else /login asks, such as whether to start the agent's own sign-in, gets no and ends the setup.
-                await AcknowledgeAsync(driver, route);
+                if (await AcknowledgeAsync(driver, route) is { } label)
+                {
+                    usedWithoutAsking[route.Provider] = label;
+                }
             }
 
             await driver.EnterAsync("/test trust", new ExpectedQuestion(ShellDriver.ChecksQuestion, "yes"));
@@ -491,6 +515,24 @@ public partial class LiveRunTests(ITestOutputHelper output)
         {
             var route = routes.Single(r => r.Provider == ProviderOf(model.AdapterId));
             var found = acknowledged.Where(a => a.Subject.StartsWith(model.AdapterId + ":", StringComparison.Ordinal)).ToList();
+            if (usedWithoutAsking.TryGetValue(route.Provider, out var shownLabel))
+            {
+                // Nothing is acknowledged for a subscription: the label is the one /login showed.
+                Assert.Empty(found);
+                if (!recorded.Any(r => r!["provider"]!.GetValue<string>() == route.Provider))
+                {
+                    recorded.Add(new JsonObject
+                    {
+                        ["provider"] = route.Provider,
+                        ["kind"] = route.Kind,
+                        ["label"] = shownLabel,
+                        ["route"] = $"{model.AdapterId}:{route.Route}:used without asking",
+                    });
+                }
+
+                continue;
+            }
+
             Assert.True(found.Count > 0, $"No account route of {model.AdapterId} was acknowledged. See {part.Record}-screens.txt.");
             foreach (var acknowledgement in found)
             {

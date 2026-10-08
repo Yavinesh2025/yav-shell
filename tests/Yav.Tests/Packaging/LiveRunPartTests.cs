@@ -47,7 +47,8 @@ public sealed class LiveRunPartTests(ITestOutputHelper output)
             .ToList();
         Assert.Equal(["codex|subscription|ChatGPT plan (pro)", "claude|api-key|Anthropic API key (configured in Claude Code)"], routes);
         Assert.Contains(run.AcknowledgedRoutes(), route => route.StartsWith("claude-cli:ApiKey:", StringComparison.Ordinal));
-        Assert.Contains(run.AcknowledgedRoutes(), route => route.StartsWith("codex-app-server:Subscription:", StringComparison.Ordinal));
+        // A subscription the agent is signed in to is used without asking: nothing is acknowledged for it.
+        Assert.DoesNotContain(run.AcknowledgedRoutes(), route => route.StartsWith("codex-app-server:", StringComparison.Ordinal));
     }
 
     [Fact]

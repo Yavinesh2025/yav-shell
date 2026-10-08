@@ -156,6 +156,7 @@ public class ExecutableTests
     public async Task A_route_that_was_not_acknowledged_blocks_the_run()
     {
         using var yav = new YavProcess(acknowledgeRoutes: false).WithPassingRun();
+        yav.Agents.Codex(c => c["account"] = new System.Text.Json.Nodes.JsonObject { ["type"] = "apiKey" });
 
         var result = await yav.RunAsync(["run", "--project", yav.Project.Path, "--task", Task, "--json"]);
 

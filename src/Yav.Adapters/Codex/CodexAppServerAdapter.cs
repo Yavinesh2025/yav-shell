@@ -185,7 +185,7 @@ public sealed class CodexAppServerAdapter : IAgentAdapter, ISandboxReporting
                     true, AccountRouteKind.Subscription, $"ChatGPT plan ({plan})", plan, "openai", BillingKind.IncludedInSubscription,
                     RoutePolicy.RequiresAcknowledgement,
                     "Usage counts against the limits of your ChatGPT plan. OpenAI documents ChatGPT sign-in for app-server clients and "
-                    + "publishes no statement about third-party clients, so YAV asks you to acknowledge this route once.",
+                    + "publishes no statement about third-party clients. YAV uses the plan the agent is signed in to without asking.",
                     Source, now);
             }
 
