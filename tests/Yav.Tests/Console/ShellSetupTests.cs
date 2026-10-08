@@ -211,7 +211,7 @@ public class ShellSetupTests
     [Fact]
     public async Task The_checks_a_project_file_names_are_shown_and_approved_only_by_a_typed_yes()
     {
-        await using var shell = await StartedAsync(arrange: s =>
+        await using var shell = await StartedAsync(new ShellOptions { RequireChecks = true }, arrange: s =>
         {
             ScriptPassingTurns(s);
             s.Project.Write("yav.project.json", ConfigurationWithOneCheck(s));
@@ -233,7 +233,7 @@ public class ShellSetupTests
     [Fact]
     public async Task Checks_the_files_suggest_are_proposed_and_approved_only_by_a_typed_yes()
     {
-        await using var shell = await StartedAsync(arrange: s =>
+        await using var shell = await StartedAsync(new ShellOptions { RequireChecks = true }, arrange: s =>
         {
             s.Project.Write("package.json", """{ "name": "app", "scripts": { "test": "node test.js" } }""");
 
@@ -255,7 +255,7 @@ public class ShellSetupTests
     [Fact]
     public async Task A_project_whose_files_suggest_no_checks_is_offered_acceptance_on_the_review_alone()
     {
-        await using var shell = await StartedAsync(arrange: ScriptPassingTurns);
+        await using var shell = await StartedAsync(new ShellOptions { RequireChecks = true }, arrange: ScriptPassingTurns);
 
         shell.Enter(Task);
         await shell.AnswerWhenAskedAsync(ReviewOnly, "yes");
@@ -277,7 +277,7 @@ public class ShellSetupTests
     [Fact]
     public async Task Checks_that_were_declined_leave_the_review_alone_as_the_only_way_and_a_no_to_that_sends_nothing()
     {
-        await using var shell = await StartedAsync(arrange: s =>
+        await using var shell = await StartedAsync(new ShellOptions { RequireChecks = true }, arrange: s =>
         {
             ScriptPassingTurns(s);
             s.Project.Write("yav.project.json", ConfigurationWithOneCheck(s));
@@ -532,7 +532,7 @@ public class ShellSetupTests
     [Fact]
     public async Task Quality_shows_that_the_project_is_accepted_on_the_review_alone_and_gates_required_withdraws_it()
     {
-        await using var shell = await StartedAsync(arrange: s => s.Services.Database.AcceptReviewOnly(s.Project.Path, "test"));
+        await using var shell = await StartedAsync(new ShellOptions { RequireChecks = true }, arrange: s => s.Services.Database.AcceptReviewOnly(s.Project.Path, "test"));
 
         await shell.EnterAndWaitAsync("/quality");
         shell.AssertShows("This project: review only, as you accepted: no check is approved for it, so a candidate is accepted on the review alone");
@@ -548,7 +548,7 @@ public class ShellSetupTests
     [Fact]
     public async Task A_project_whose_approved_checks_are_all_optional_is_offered_acceptance_on_the_review_alone()
     {
-        await using var shell = await StartedAsync(arrange: s =>
+        await using var shell = await StartedAsync(new ShellOptions { RequireChecks = true }, arrange: s =>
         {
             ScriptPassingTurns(s);
             s.TrustGates(CoordinatorHarness.TextGate("lint", "src/app.txt", "fixed", required: false));
@@ -674,7 +674,7 @@ public class ShellSetupTests
     [Fact]
     public async Task Control_C_at_the_approval_of_the_checks_does_not_lead_to_the_review_alone()
     {
-        await using var shell = await StartedAsync(arrange: s =>
+        await using var shell = await StartedAsync(new ShellOptions { RequireChecks = true }, arrange: s =>
         {
             ScriptPassingTurns(s);
             s.Project.Write("yav.project.json", ConfigurationWithOneCheck(s));

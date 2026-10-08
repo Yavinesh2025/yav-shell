@@ -334,7 +334,7 @@ public sealed partial class InteractiveShell
                 ("Quality Lock", settings.QualityLock ? "ON: models, effort, review and billing route are held to what you chose" : "OFF", settings.QualityLock ? Tone.Success : Tone.Warning),
                 ("Policy", settings.Strict ? "strict: a setting the provider did not confirm blocks the run" : "relaxed: an unconfirmed setting is shown as Requested / Unverified and the run goes on", settings.Strict ? Tone.Normal : Tone.Warning),
                 ("Review by Model B", "required, in its own conversation, read-only", Tone.Normal),
-                ("Required checks", settings.RequireGates ? "required: a project with no approved check that is required does not run" : "optional: a candidate can be accepted on the review alone", settings.RequireGates ? Tone.Normal : Tone.Warning),
+                ("Required checks", settings.RequireGates ? "required: a project with no approved check that is required does not run" : "optional (the default): a project with no approved check that is required runs on the review alone; approved required checks still run and must pass", settings.RequireGates ? Tone.Normal : Tone.Warning),
             };
             if (settings.RequireGates && _session.ProjectPath is { } project && _services.Database.IsReviewOnlyAccepted(project))
             {
@@ -379,7 +379,7 @@ public sealed partial class InteractiveShell
                 Save(s => s with { RequireGates = value == "required" });
                 _ui.Say(value == "required"
                     ? "Required checks: a project with no approved check that is required does not run."
-                    : "Required checks are optional: a candidate can be accepted although nothing was run to check it. Approved checks that are required still run and still have to pass.", value == "required" ? Tone.Normal : Tone.Warning);
+                    : "Required checks are optional, the default: a project with no approved check that is required runs on the review alone, without asking. Approved checks that are required still run and still have to pass.", value == "required" ? Tone.Normal : Tone.Warning);
 
                 // Required means required here as well: what was accepted for the project that is open is withdrawn.
                 if (value == "required" && _session.ProjectPath is { } open && _services.Database.WithdrawReviewOnly(open))

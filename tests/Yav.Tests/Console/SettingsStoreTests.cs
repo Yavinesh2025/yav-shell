@@ -25,7 +25,7 @@ public class SettingsStoreTests
         Assert.Empty(loaded.Problems);
         Assert.True(loaded.Settings.QualityLock);
         Assert.True(loaded.Settings.Strict);
-        Assert.True(loaded.Settings.RequireGates);
+        Assert.False(loaded.Settings.RequireGates);
         Assert.False(loaded.Settings.Adaptive);
         Assert.False(loaded.Settings.Telemetry);
         Assert.Equal(ProviderSpeedMode.Standard, loaded.Settings.Speed);
@@ -71,6 +71,20 @@ public class SettingsStoreTests
 
         Assert.True(store.Load().Settings.InstallOfferDeclined);
         Assert.Contains("\"installOfferDeclined\": true", File.ReadAllText(paths.SettingsFile), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_requireGates_that_0_2_0_wrote_for_everyone_is_not_read_and_requireChecks_is()
+    {
+        var (store, paths, home) = Store();
+        using var cleanup = home;
+        File.WriteAllText(paths.SettingsFile, "{ \"schemaVersion\": 1, \"requireGates\": true }");
+
+        Assert.False(store.Load().Settings.RequireGates);
+
+        store.Save(new AppSettings { RequireGates = true });
+        Assert.Contains("\"requireChecks\": true", File.ReadAllText(paths.SettingsFile), StringComparison.Ordinal);
+        Assert.True(store.Load().Settings.RequireGates);
     }
 
     [Fact]

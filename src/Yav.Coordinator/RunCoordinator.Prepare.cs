@@ -78,7 +78,40 @@ public sealed partial class RunCoordinator
         // The policy of the run says so itself, so that the profile and the acceptance gate agree.
         // The acceptance applies only when it is known what is approved. When the approved configuration or the
         // file cannot be read, no required check may only seem to be approved, so the run does not go on.
+        // With checks optional, which is what YAV does unless the user typed /quality gates required, a project with no
+        // approved check that is required runs on the review alone without asking, and the run says so in one line.
+        // When its files suggest checks, one more line says how to approve them; none of them runs without that yes.
+        // Here too the review alone applies only when it is known what is approved.
         var policy = configuration.Policy;
+        if (!policy.RequireGates && !state.Effective.RequiredGates.Any())
+        {
+            if (state.Errors.Count > 0 || state.Trust == ConfigurationTrust.Invalid)
+            {
+                problems.Add(new ProfileProblem(
+                    null, ProblemSeverity.Blocking, "review-only-unknown",
+                    "No approved check is required, so a candidate is accepted on the review of Model B alone, which applies only while it is known that none is required. "
+                    + (state.Trust == ConfigurationTrust.Invalid
+                        ? $"{file} cannot be used, so it is not known whether it names a required check: "
+                        : "Which checks are approved cannot be read now: ")
+                    + (state.Errors.FirstOrDefault() ?? $"{file} could not be read."),
+                    $"Correct {file} or approve the checks again with /test trust."));
+            }
+            else
+            {
+                problems.Add(new ProfileProblem(
+                    null, ProblemSeverity.Warning, "checks-optional",
+                    "No approved check is required for this project: the candidate is accepted on Model B's review alone, and nothing of the project is run.",
+                    null));
+                if (validation.Detect(project).Count > 0)
+                {
+                    problems.Add(new ProfileProblem(
+                        null, ProblemSeverity.Info, "checks-detected",
+                        "YAV found checks this project could run; approve them with /test detect (nothing runs without your yes).",
+                        null));
+                }
+            }
+        }
+
         if (policy.RequireGates && !state.Effective.RequiredGates.Any() && _services.Trust.IsReviewOnlyAccepted(project))
         {
             if (state.Trust == ConfigurationTrust.Invalid || state.Errors.Count > 0)
