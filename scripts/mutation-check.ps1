@@ -732,6 +732,13 @@ $mutations = @(
         Filter  = 'FullyQualifiedName~ReadOnlyCommandsTests'
     },
     @{
+        Name    = 'a change of files outside the isolated copy is allowed without asking'
+        File    = 'src\Yav.Adapters\Codex\CodexAppServerSession.cs'
+        Find    = '            return full.StartsWith(root, StringComparison.OrdinalIgnoreCase);'
+        Replace = '            return full.Length > 0;'
+        Filter  = 'FullyQualifiedName~CodexApprovalAndControlTests'
+    },
+    @{
         Name    = 'a stale review is accepted'
         File    = 'src\Yav.Core\Runs\AcceptanceGate.cs'
         Find    = 'if (!review.Binding.Matches(expected, out var difference))'

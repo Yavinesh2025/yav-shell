@@ -659,6 +659,21 @@ internal sealed class CodexAppServerSession : IAgentSession
     /// <summary>A kind of change YAV knows how to describe.</summary>
     private static bool IsKnownChange(AnnouncedChange change) => change.Kind is "add" or "delete" or "update";
 
+    /// <summary>Whether a path of a change lies inside the isolated copy the session works in.</summary>
+    private bool InsideCopy(string path)
+    {
+        try
+        {
+            var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_request.WorkingDirectory)) + Path.DirectorySeparatorChar;
+            var full = Path.GetFullPath(Path.Combine(_request.WorkingDirectory, path));
+            return full.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>What a request to approve a change would change, for the user to see before deciding.</summary>
     private List<string> DescribeChanges(string? itemId)
     {
@@ -859,6 +874,18 @@ internal sealed class CodexAppServerSession : IAgentSession
         {
             await AnswerAsync(method, () => _connection.RespondAsync(rawId, writer => writer.WriteString("decision", "accept"), CancellationToken.None)).ConfigureAwait(false);
             await PublishAsync(new AgentNotice(Now, "Allowed without asking, because it only reads: " + parameters.Text("command"), IsWarning: false)).ConfigureAwait(false);
+            return;
+        }
+
+        // Changes to files of the isolated copy are allowed without asking (the user's decision of 2026-10-08): the
+        // project itself changes only when the user applies the candidate after the review. A change that names a
+        // file outside the copy, one YAV cannot describe, or extra write access is still asked about.
+        if (kind == ApprovalKind.FileChange && parameters.Text("grantRoot") is null
+            && parameters.Text("itemId") is { } itemId && _announcedChanges.TryGetValue(itemId, out var inCopy)
+            && inCopy.Count > 0 && inCopy.All(c => IsKnownChange(c) && InsideCopy(c.Path) && (c.MovedTo is null || InsideCopy(c.MovedTo))))
+        {
+            await AnswerAsync(method, () => _connection.RespondAsync(rawId, writer => writer.WriteString("decision", "accept"), CancellationToken.None)).ConfigureAwait(false);
+            await PublishAsync(new AgentNotice(Now, $"Allowed without asking, because it changes only the isolated copy: {string.Join(", ", inCopy.Select(c => c.Path))}", IsWarning: false)).ConfigureAwait(false);
             return;
         }
 

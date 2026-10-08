@@ -17,14 +17,12 @@ public static class ReadOnlyCommands
     {
         "get-childitem", "gci", "ls", "dir", "get-content", "gc", "cat", "type", "get-item", "gi", "test-path",
         "resolve-path", "get-location", "pwd", "select-object", "select", "select-string", "sls", "sort-object", "sort",
-        "measure-object", "measure", "format-table", "ft", "format-list", "fl", "out-string", "findstr", "rg", "where",
-        "get-command", "tree", "git",
+        "measure-object", "measure", "format-table", "ft", "format-list", "fl", "out-string", "findstr", "where",
+        "get-command", "tree",
     };
 
-    private static readonly HashSet<string> GitReaders = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "status", "diff", "log", "show", "ls-files", "rev-parse", "branch", "blame", "grep",
-    };
+    // Not git and not rg: git runs programs that the configuration of the copy names (core.fsmonitor, diff.external,
+    // a pager), which the agent can write, and rg --pre runs any program. Both are asked about.
 
     public static bool IsReadOnly(string? command)
     {
@@ -52,11 +50,6 @@ public static class ReadOnlyCommands
                 return false;
             }
 
-            if (Name(words[0]) == "git" && (words.Count < 2 || !GitReaders.Contains(words[1])
-                || (words[1].Equals("branch", StringComparison.OrdinalIgnoreCase) && words.Skip(2).Any(w => !w.StartsWith("--list", StringComparison.Ordinal) && w is not ("-a" or "-v" or "-r")))))
-            {
-                return false;
-            }
         }
 
         return true;

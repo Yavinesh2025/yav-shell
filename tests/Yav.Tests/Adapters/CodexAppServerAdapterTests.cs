@@ -1607,21 +1607,36 @@ public class CodexApprovalAndControlTests
     public async Task The_files_of_a_file_change_approval_are_those_of_the_latest_patch()
     {
         using var fixture = new AgentFixture().ImplementerTurn(
-            Step.FileChangeApproval([Step.Changed("second.txt")], announced: [Step.Changed("first.txt")]),
+            Step.FileChangeApproval([Step.Changed("../outside/second.txt")], announced: [Step.Changed("../outside/first.txt")]),
             Step.Message("Done."));
         await using var adapter = fixture.CodexAppServer();
         await using var session = await adapter.StartSessionAsync(fixture.Request(AgentRole.Implementer), CancellationToken.None);
 
         var asked = await FirstApprovalAsync(session);
 
-        Assert.Equal(["Update " + Full(fixture, "second.txt")], asked.Details);
+        Assert.Equal(["Update " + Full(fixture, "../outside/second.txt")], asked.Details);
+    }
+
+    [Fact]
+    public async Task A_change_of_files_in_the_isolated_copy_is_allowed_without_asking()
+    {
+        using var fixture = new AgentFixture().ImplementerTurn(
+            Step.FileChangeApproval([Step.Changed("src/app.txt"), Step.Changed("src/new.txt", kind: "add")]),
+            Step.Message("Done."));
+        await using var adapter = fixture.CodexAppServer();
+        await using var session = await adapter.StartSessionAsync(fixture.Request(AgentRole.Implementer), CancellationToken.None);
+
+        var events = await session.RunTurnAsync("go");
+
+        Assert.Empty(events.OfType<ApprovalRequested>());
+        Assert.Contains(events.OfType<AgentNotice>(), n => !n.IsWarning && n.Message.Contains("changes only the isolated copy", StringComparison.Ordinal));
     }
 
     [Fact]
     public async Task An_approval_for_many_files_names_twenty_and_counts_the_rest()
     {
         using var fixture = new AgentFixture().ImplementerTurn(
-            Step.FileChangeApproval(Enumerable.Range(1, 25).Select(i => Step.Changed($"src/file{i:00}.txt")).ToArray()),
+            Step.FileChangeApproval(Enumerable.Range(1, 25).Select(i => Step.Changed($"../outside/file{i:00}.txt")).ToArray()),
             Step.Message("Done."));
         await using var adapter = fixture.CodexAppServer();
         await using var session = await adapter.StartSessionAsync(fixture.Request(AgentRole.Implementer), CancellationToken.None);
@@ -1629,8 +1644,8 @@ public class CodexApprovalAndControlTests
         var asked = await FirstApprovalAsync(session);
 
         Assert.Equal(21, asked.Details.Count);
-        Assert.Equal("Update " + Full(fixture, "src/file01.txt"), asked.Details[0]);
-        Assert.Equal("Update " + Full(fixture, "src/file20.txt"), asked.Details[19]);
+        Assert.Equal("Update " + Full(fixture, "../outside/file01.txt"), asked.Details[0]);
+        Assert.Equal("Update " + Full(fixture, "../outside/file20.txt"), asked.Details[19]);
         Assert.Equal("and 5 more", asked.Details[20]);
 
         // Files that are not named are not allowed in passing, and not for the rest of the conversation.
@@ -1642,7 +1657,7 @@ public class CodexApprovalAndControlTests
     public async Task An_approval_that_names_every_file_can_be_given_with_one_answer()
     {
         using var fixture = new AgentFixture().ImplementerTurn(
-            Step.FileChangeApproval(Enumerable.Range(1, 20).Select(i => Step.Changed($"src/file{i:00}.txt")).ToArray()),
+            Step.FileChangeApproval(Enumerable.Range(1, 20).Select(i => Step.Changed($"../outside/file{i:00}.txt")).ToArray()),
             Step.Message("Done."));
         await using var adapter = fixture.CodexAppServer();
         await using var session = await adapter.StartSessionAsync(fixture.Request(AgentRole.Implementer), CancellationToken.None);
