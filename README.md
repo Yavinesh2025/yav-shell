@@ -41,9 +41,9 @@ and which reviews, chosen from the models the agents list for your accounts, and
 that a route that bills an API key per token may be used, and that files Git ignores will be missing
 from the isolated copy of the project. A subscription the agent is signed in to (the ChatGPT plan of
 Codex, a Claude subscription) is used without a question. A project without an approved required check
-runs on Model B's review alone; YAV names the checks it found in one line (`/test detect` approves them)
+runs on Model B's review alone; YAV names the checks it found in one line (`/test detect` or `/test trust` approves them)
 and runs no command of the project you have not approved. While an agent thinks or works, a line that
-moves shows the stage, what the agent is doing and the time that has passed.
+moves shows the stage, what the agent is doing and the time since the stage began.
 Your answers are kept. After that, a request is all it takes.
 
 YAV Shell contains no model and no coding agent. It drives the agent programs you have installed

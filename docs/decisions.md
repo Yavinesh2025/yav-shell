@@ -188,7 +188,7 @@ use, and that progress should be visible while it thinks or works. On 2026-10-08
   overrides the specification's rule that every grant needs a typed `yes`, for checks: what runs
   without one is the review, not a command of the repository.
 * **Progress is visible.** While an agent thinks or works, the shell shows something that moves, the
-  elapsed time and the stage of the run with what the agent reports it is doing, so a still screen is
+  time since the stage began and the stage of the run with what the agent reports it is doing, so a still screen is
   never all there is. It shows what happens, not a percentage or a forecast, which YAV cannot know.
 * **Corrected with it:** Claude Code as Model A is no longer offered its `AskUserQuestion` tool. Its
   window of questions is something YAV cannot show, so a turn waited for an answer nobody could give;

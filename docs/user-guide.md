@@ -396,7 +396,7 @@ for exactly the files it named: when other ignored files appear later, you are a
 | `/login claude --api-key`, `--forget-key` | keep an Anthropic API key in the Windows Credential Manager, or remove it |
 | `/quality` | Quality Lock and what a candidate has to pass, and whether review-only acceptance was accepted for the selected project |
 | `/quality lock\|strict on\|off` | |
-| `/quality gates required\|optional` | whether a project without an approved required check may run on the review alone, for every project. `required` also makes checks required for the selected project, which by default runs on the review alone |
+| `/quality gates required\|optional` | `required`: requests in the selected project do not run until a required check is approved; `optional`: a project without an approved required check runs on the review alone, which is the default |
 | `/quality preexisting ask\|repair` | what happens to a required check that already failed before the task |
 | `/speed [standard\|provider]` | the provider's faster serving of the same model. Shown with its billing and used only after you typed `yes` |
 | `/adaptive [on\|off]` | off by default. When on, YAV asks at the start of each new task whether Model A may work at a lower effort for that task |
