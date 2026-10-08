@@ -214,8 +214,7 @@ What the shell can ask, and only when it is needed:
 | Model A or Model B is not chosen | a number from the list of the models the agents list for your accounts: model, name, agent, effort values, and which one the provider marks as its default | `/models a\|b <adapter> <model>` |
 | a model lists an effort value YAV cannot rank (Codex lists `ultra`) | the exact effort, one of the values the model lists | `/effort a\|b <value>` |
 | an agent is not signed in | for Codex, whether to start Codex's own sign-in. For Claude Code it asks nothing and says how to sign in with Claude Code itself (`claude`, or `claude auth login`) | `/login codex\|claude` |
-| an account route is not acknowledged | whether runs of YAV may use it, after it showed how the route is billed | `/login` |
-| the project has no approved check that is required | to approve the project's `yav.project.json`, or the checks YAV proposes from what the project contains; when there are none, you declined them, or what you approved requires no check, whether candidates of this project may be accepted on the review alone. That is not offered while the approved checks cannot be read | `/test trust`, `/test detect`, [review-only acceptance](#quality-lock) |
+| an account route that bills an API key per token is not acknowledged | whether runs of YAV may use it, after it showed how the route is billed. A subscription the agent is signed in to (the ChatGPT plan of Codex, a Claude subscription) is used without this question | `/login` |
 | files ignored by Git would be absent from the isolated workspace | whether you accept that, after it showed which ones | `/open --accept-gaps` |
 
 * YAV does not choose models for you and does not rank them. The list is what the providers report;
@@ -223,7 +222,12 @@ What the shell can ask, and only when it is needed:
   for Codex the app server when it can be used, otherwise `codex exec`. `/models` lists all of them.
 * Model B reviews what Model A made, so it has to be another model: with Quality Lock and strict
   policy (the defaults) the same model for both roles does not run, and the list does not take it.
-* What grants or acknowledges something - an account route, checks, review-only acceptance, ignored
+* **Checks are not asked for.** A request in a project without an approved required check runs right
+  away, on Model B's review alone, and the run says so. Where YAV finds checks it could propose, it
+  names them in one line, with how to approve them (`/test detect`); it never runs a command of the
+  project that you have not approved. `/quality gates required` makes checks required again
+  ([Quality Lock](#quality-lock)).
+* What grants or acknowledges something - an account route that bills an API key, checks, ignored
   files that stay behind - is answered with the word `yes` and Enter, never with a single key.
 * A question you decline, or leave without an answer, changes nothing, and the request is not sent.
   Enter on an empty answer, or Ctrl+C, chooses nothing; Esc only clears what you typed. Three answers
@@ -339,6 +343,10 @@ YAV C:\Projects\MyApp> Fix the login bug and add regression tests.
   indented behind a mark (`│`, `$`, `~`, `!`), on every row it needs, so it cannot pass for a line of
   YAV or for a question of YAV.
 * The lines show events that happened. There is no percentage and no forecast.
+* While an agent thinks or works, the last line of the run moves: it shows the stage the run is in,
+  what the agent reports it is doing, and the time since the stage began, so a still screen means
+  that nothing runs. It is drawn only in a console; `yav run`, JSON output and redirected output get
+  no such line.
 * Review and required checks run side by side, both against the same frozen candidate.
 * When the review has findings or a check fails, everything goes back to Model A in **one** request.
   That is a repair cycle; two are allowed by default (`/limits repairs <n>`).
@@ -384,11 +392,11 @@ for exactly the files it named: when other ignored files appear later, you are a
 | `/models swap`, `/models refresh` | exchange the roles; ask the providers again |
 | `/effort` | what is requested for each role and what "maximum" resolves to |
 | `/effort a\|b <value>\|maximum` | set it. A value the model does not list is refused; nothing is lowered for you |
-| `/login [codex\|claude]` | account route and billing; acknowledges the route; starts the provider's own sign-in when you are not signed in |
+| `/login [codex\|claude]` | account route and billing; acknowledges a route that bills an API key (a subscription needs no acknowledgement); starts the provider's own sign-in when you are not signed in |
 | `/login claude --api-key`, `--forget-key` | keep an Anthropic API key in the Windows Credential Manager, or remove it |
 | `/quality` | Quality Lock and what a candidate has to pass, and whether review-only acceptance was accepted for the selected project |
 | `/quality lock\|strict on\|off` | |
-| `/quality gates required\|optional` | whether a project without an approved required check may run, for every project. `required` also withdraws the review-only acceptance of the selected project |
+| `/quality gates required\|optional` | `required`: requests in the selected project do not run until a required check is approved; `optional`: a project without an approved required check runs on the review alone, which is the default |
 | `/quality preexisting ask\|repair` | what happens to a required check that already failed before the task |
 | `/speed [standard\|provider]` | the provider's faster serving of the same model. Shown with its billing and used only after you typed `yes` |
 | `/adaptive [on\|off]` | off by default. When on, YAV asks at the start of each new task whether Model A may work at a lower effort for that task |
@@ -516,23 +524,23 @@ Quality Lock holds the configuration and the acceptance requirements. It cannot 
 correct, and it cannot make two runs give the same result.
 
 **Required checks** are required unless you change that. A candidate is ready only when the review
-passed and every required check of the project passed for exactly that candidate, so a project without
-an approved required check does not run. (A check is required unless it says `"required": false`.)
-There are two ways out besides approving checks:
+passed and every required check of the project passed for exactly that candidate. (A check is required
+unless it says `"required": false`.) A project that has no approved required check is not held up:
 
-* **Review-only acceptance for one project.** When a request in a project without an approved required
-  check cannot start, the shell offers it, and you accept it with `yes`. A candidate of that project is
-  then accepted on Model B's review alone, and every run says so. It applies only while the project has
+* **Review-only by default.** A request in a project without an approved required check runs right
+  away, without a question, and its candidate is accepted on Model B's review alone; every run says so.
+  Where YAV finds checks it could propose, it names them in one line, with how to approve them
+  (`/test detect`); it runs no command of the project that you have not approved. This applies only while the project has
   no approved required check: once you approve one (`/test detect`, `/test trust`), checks are required
   for it again, and should the project later require none, the acceptance applies again. An approved
   check that is optional does not set it aside, because a run does not run optional checks.
-  `/quality` shows it, and `/quality gates required` withdraws it for the selected project.
+  `/quality` shows it, and `/quality gates required` makes checks required for the selected project:
+  its requests then do not run until a required check is approved.
   * When the approved checks of the project cannot be read (the stored approval is damaged, or the
     project's `yav.project.json` cannot be used), the acceptance does not stand in for them: the run
     is blocked (`review-only-unknown`) until you correct the file or approve the checks again.
   * When you withdraw the acceptance after a run, that run's candidate, which was accepted on the review
-    alone, is not applied: `/apply` writes nothing and says so. Run the task again to have it checked, or
-    accept the review alone once more and apply again.
+    alone, is not applied: `/apply` writes nothing and says so. Run the task again to have it checked.
 * **`/quality gates optional`**, for every project: a candidate of a project without an approved required
   check is accepted on the review alone, everywhere, until you set `/quality gates required` again.
 
@@ -558,13 +566,13 @@ The required checks of a project are commands **you approved**. A `yav.project.j
 project is a proposal until then: `/test trust` shows it and asks. When the file changes later, the
 version you approved stays in effect until you approve the new one.
 
-A request typed in a project without an approved required check asks for one: it shows the project's
-`yav.project.json` when there is one, otherwise what `/test detect` proposes from what the project
-contains, and nothing runs before you typed `yes`. Approved proposals are written to
-`yav.project.json` when the project has none, so that they can be kept with the project. When there is
-nothing to approve, you declined, or what you approved requires no check, it offers
-[review-only acceptance](#quality-lock) for the project; while the approved checks cannot be read, it
-does not.
+A request typed in a project without an approved required check does not ask for one: it runs on
+Model B's review alone ([Quality Lock](#quality-lock)). When the project has a `yav.project.json`, or
+`/test detect` finds checks in what the project contains, the run says so in one line, with how to
+approve them: `/test trust` or `/test detect`, which show the commands, and nothing runs before you
+typed `yes`. Approved proposals are written to `yav.project.json` when the project has none, so that
+they can be kept with the project. While the approved checks cannot be read, the run is blocked
+instead (`review-only-unknown`).
 
 ```jsonc
 {
@@ -609,10 +617,10 @@ Anything unknown in the file is an error, because the file decides which command
 
 `yav run` performs one request and ends. Nobody can be asked, so nothing is granted: when an agent
 asks for approval, the run ends as **Approval Required**. The questions of a first request are not
-asked either: a run that needs a decision of yours - the models, an account route, the checks of the
-project, ignored files - ends as **Blocked** (exit code 2), and its result names what is missing
-(`problems`). Decide it in the shell, where a typed request asks for it, or with the commands; a
-review-only acceptance you gave for a project holds for `yav run` as well.
+asked either: a run that needs a decision of yours - the models, an account route that bills an API key, the
+exact effort, ignored files - ends as **Blocked** (exit code 2), and its result names what is missing
+(`problems`). Decide it in the shell, where a typed request asks for it, or with the commands. A
+subscription route and a project without an approved required check need no decision there either.
 
 | Exit code | |
 |---|---|

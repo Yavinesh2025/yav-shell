@@ -12,7 +12,7 @@ set a default for behavior that the specification left open.
 | An effort value YAV cannot rank (`ultra`) **always blocks** until you choose the exact value, under every policy | Codex describes `ultra` as maximum reasoning *with automatic task delegation*. Whether that is "the maximum" you meant is a decision, not a lookup. Since 0.2.0 the shell asks for the value when a request needs it | `/effort a\|b <value>` |
 | Two repair cycles | The specification's default | `/limits repairs <n>` |
 | In Adaptive mode the run is marked Adaptive even for a task for which no lower effort was approved | It can never be called Strict Max by mistake. The effort that was used is recorded per run | `/adaptive off` |
-| A subscription route needs your acknowledgement once per route | The providers' terms differ for third-party clients and change. YAV states what it found and leaves the decision with the account holder. Since 0.2.0 the shell asks for it when a request needs it | `/login <provider>` |
+| **A subscription route is used without an acknowledgement**; a route that bills an API key per token needs one, once per route | You decided on 2026-10-08 that a subscription the agent is signed in to (the ChatGPT plan of Codex, a Claude subscription) is what you chose by signing in, and that asking for it kept YAV from being ready to use. A key billed per token costs money per request, so it still needs a typed `yes`. The route is shown in every run, and another route than the one shown stops a run as before | `/login <provider>` |
 | Input from a pipe is read line by line, each line after the run before it ended; the end of the input lets a run finish | Nobody is typing while a run works, so queuing and stopping, which are right at a keyboard, would make a script unusable | - |
 | `yav run` never grants an approval | Nobody is there to ask. The run ends as Approval Required (exit code 3) | - |
 | Model A **is told** which required checks YAV runs itself, and not to ask for access beyond its sandbox only to run tests | In the first run with real models, Model A asked for access outside its sandbox only to run the tests, which YAV runs anyway, and `yav run` ended as Approval Required. You decided on 2026-09-30 that it should be told. Its task, a repair and a continuation name the checks; where it cannot run tests inside its sandbox, it is asked to say so in its report. A project without required checks gets no such section. In the second run with real models Model A asked for nothing, said that it could not run the tests, and `yav run` went through | `src/Yav.Core/Templates/RuntimeTemplates.cs` (`AppendChecks`) |
@@ -30,7 +30,7 @@ set a default for behavior that the specification left open.
 | **Enter installs** when a `yav.exe` that is not installed starts without arguments in a console | Running `yav.exe` is how you said it should be installed. It changes only your own account, and `yav uninstall` takes it back. A "no" given in a console you had already open is remembered, so that you are not asked at every start of a copy you use where it is | `installOfferDeclined` in `settings.json`; `yav install` |
 | **No Start menu entry** | Typing `yav` is the way in. An entry would start YAV in your profile, which is no project, and making one needs code for Windows shortcuts that nothing else uses. "Installed apps" lists YAV Shell, so it can be removed from there | - |
 | The questions of the first request show **one interface per provider**: the Codex app server when it is usable, otherwise `codex exec`, and Claude Code | Only the app server can ask you for approval and list models. Each Codex model listed twice, once per interface, made the list longer without adding a choice | `/models a\|b <adapter> <model>` |
-| **Review-only acceptance is offered for a project** that has no approved check that is required: YAV has no check to propose for it, you declined what it proposed, or what you approved requires none | Without it such a project cannot run while checks are required. The other way, `/quality gates optional`, lets every project run without checks, also those that have some | `/quality gates required` withdraws it for the selected project; while an approved required check exists it is set aside, and it applies again when none is required |
+| **A project without an approved required check runs on the review alone by default** (since 0.2.1; in 0.2.0 it was offered and needed a typed `yes`) | You decided on 2026-10-08 that a first request should run right away. YAV names the checks it found in one line, with `/test detect` to approve them, and never runs a command of the project you did not approve, so the commands of a repository still need your `yes` | `/quality gates required` makes checks required for the selected project; while an approved required check exists, it runs |
 
 ## Installing and starting: version 0.2.0
 
@@ -167,6 +167,32 @@ in this section and the next serve it.
   so that `/apply` does not write a candidate that was accepted on the review alone in a run that started
   before the withdrawal; the run stays ready, and accepting the review alone once more makes it
   applicable again.
+
+## The first request: version 0.2.1
+
+You tried `yav` 0.2.0 and said that it asked too many questions, that it was supposed to be ready to
+use, and that progress should be visible while it thinks or works. On 2026-10-08 you decided:
+
+* **The models stay your explicit choice**, asked for once on the first request and remembered, as in
+  0.2.0. Nothing about them changed.
+* **A subscription route is used without a typed `yes`.** A route through a subscription the agent is
+  signed in to - the ChatGPT plan of Codex, the Claude subscription of Claude Code - is used
+  automatically. A route that bills an API key per token still needs the typed `yes`, as before. This
+  overrides the specification's rule that every grant needs a typed `yes`, for subscription routes. The
+  route is shown in every run, and a run whose agent reports another route than the one shown still
+  stops, under every policy.
+* **Checks are no longer a question; review-only is the default.** A first request in a project without
+  an approved required check runs right away, on Model B's review alone, and the run says so. YAV detects
+  checks and suggests them in one line, with how to approve them (`/test detect`), but never runs a
+  command of the project without your `yes`. `/quality gates required` still makes checks required. This
+  overrides the specification's rule that every grant needs a typed `yes`, for checks: what runs
+  without one is the review, not a command of the repository.
+* **Progress is visible.** While an agent thinks or works, the shell shows something that moves, the
+  time since the stage began and the stage of the run with what the agent reports it is doing, so a still screen is
+  never all there is. It shows what happens, not a percentage or a forecast, which YAV cannot know.
+* **Corrected with it:** Claude Code as Model A is no longer offered its `AskUserQuestion` tool. Its
+  window of questions is something YAV cannot show, so a turn waited for an answer nobody could give;
+  Claude Code writes a question into its answer instead.
 
 ## Platform and structure
 

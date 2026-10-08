@@ -82,14 +82,14 @@
       "yav.adapters": {
         "type": "Project",
         "dependencies": {
-          "Yav.Core": "[0.2.0, )",
-          "Yav.Platform": "[0.2.0, )"
+          "Yav.Core": "[0.2.1, )",
+          "Yav.Platform": "[0.2.1, )"
         }
       },
       "yav.coordinator": {
         "type": "Project",
         "dependencies": {
-          "Yav.Core": "[0.2.0, )"
+          "Yav.Core": "[0.2.1, )"
         }
       },
       "yav.core": {
@@ -98,28 +98,28 @@
       "yav.platform": {
         "type": "Project",
         "dependencies": {
-          "Yav.Core": "[0.2.0, )"
+          "Yav.Core": "[0.2.1, )"
         }
       },
       "yav.storage": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Data.Sqlite": "[10.0.12, )",
-          "Yav.Core": "[0.2.0, )"
+          "Yav.Core": "[0.2.1, )"
         }
       },
       "yav.validation": {
         "type": "Project",
         "dependencies": {
-          "Yav.Core": "[0.2.0, )",
-          "Yav.Platform": "[0.2.0, )"
+          "Yav.Core": "[0.2.1, )",
+          "Yav.Platform": "[0.2.1, )"
         }
       },
       "yav.workspace": {
         "type": "Project",
         "dependencies": {
-          "Yav.Core": "[0.2.0, )",
-          "Yav.Platform": "[0.2.0, )"
+          "Yav.Core": "[0.2.1, )",
+          "Yav.Platform": "[0.2.1, )"
         }
       },
       "Microsoft.Data.Sqlite": {
